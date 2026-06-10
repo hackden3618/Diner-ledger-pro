@@ -4,7 +4,6 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import { Alert, ScrollView, Text, TouchableOpacity, View, FlatList } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 import ScreenHeader from "@/components/ui/ScreenHeader";
 
 type Period = "today" | "week" | "month" | "year" | "all";
@@ -20,6 +19,7 @@ const PERIOD_LABELS: Record<Period, string> = {
 export default function LedgerScreen() {
     const {
         transactions,
+        openingBalance,
         debtors,
         creditors,
         businessName,
@@ -27,7 +27,6 @@ export default function LedgerScreen() {
         setReportPeriod,
     } = useApp();
     const [generating, setGenerating] = useState(false);
-    const router = useRouter();
 
     const filtered = useMemo(() => {
         const now = new Date();
@@ -63,7 +62,6 @@ export default function LedgerScreen() {
         )
         .reduce((s, t) => s + t.amount, 0);
 
-    const openingBalance = 0;
     const trialBalance = openingBalance + totalCr - totalDr;
 
     const handleGeneratePDF = async () => {

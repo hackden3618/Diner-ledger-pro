@@ -1,19 +1,18 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, Dimensions, ScrollView, KeyboardAvoidingView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useApp } from '@/database/AppContext';
 import { updateSetting } from '@/database/db';
 
-const { width } = Dimensions.get('window');
 
 const slides = [
     {
         id: '1',
         icon: 'restaurant' as const,
         iconColor: '#ff6b6b',
-        title: '¡Hola! Welcome to Book-keep Diner Pro',
+        title: 'Holla! Welcome to Book-keep Diner Pro',
         description: 'Your premium, automated ledger for seamless diner and restaurant management.',
     },
     {

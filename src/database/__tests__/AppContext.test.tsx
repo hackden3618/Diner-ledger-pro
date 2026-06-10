@@ -19,7 +19,7 @@ describe('AppContext', () => {
     );
     const { result } = renderHook(() => useApp(), { wrapper });
 
-    expect(result.current.businessName).toBe("Wambu's corner hotel");
+    expect(result.current.businessName).toBe("Mega Diner");
     expect(result.current.meals).toEqual([]);
     expect(result.current.transactions).toEqual([]);
   });

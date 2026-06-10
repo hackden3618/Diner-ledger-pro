@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Alert, ScrollView } from 'react-native';
 import { useApp } from '@/database/AppContext';
 import { getSetting } from '@/database/db';
 import { useRouter } from 'expo-router';
@@ -16,7 +16,7 @@ export default function RecordPurchaseScreen() {
   const [supplier, setSupplier] = useState('');
   const [itemDescription, setItemDescription] = useState('');
   const [expectedAmount, setExpectedAmount] = useState('');
-  const [paidAmount, setPaidAmount] = useState('');
+  const [paidAmount, setPaidAmount] = useState('0');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mpesa'>('cash');
 
   const savedStaff = getSetting("staff_operants");
