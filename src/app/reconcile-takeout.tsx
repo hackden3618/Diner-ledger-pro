@@ -282,6 +282,7 @@ export default function ReconcileTakeoutScreen() {
                 className="flex-1 text-[24px] font-bold text-foreground h-full"
                 keyboardType="numeric"
                 value={bulkCash}
+                editable={false}
                 onChangeText={setBulkCash}
               />
             </View>
