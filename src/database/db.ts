@@ -51,6 +51,7 @@ export interface Transaction {
     | "consumed"
     | "returned"
     | "expense"
+    | "credited_purchase"
     | "purchase"
     | "debtor_payment"
     | "creditor_payment"
@@ -447,6 +448,7 @@ export function closeDay(
     totalExpenses: number,
     netBalance: number,
     operant: string,
+    collector?: string,
 ) {
     const date = new Date().toISOString();
     const dateLabel = new Date().toLocaleDateString("en-KE", {
@@ -455,20 +457,23 @@ export function closeDay(
         year: "numeric",
     });
 
+    const collectorText = collector ? ` | Cash collected by ${collector}` : "";
+
     db.runSync(
-        `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, operant)
-     VALUES ('day_close', 'Day Closed — B/F', ?, ?, 'none', ?, ?)`,
+        `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, referenceName, operant)
+     VALUES ('day_close', 'Day Closed — B/F', ?, ?, 'none', ?, ?, ?)`,
         [
-            `Opening Balance: KES ${openingBalance.toLocaleString()} | Total Sales: KES ${totalSales.toLocaleString()} | Total Expenses: KES ${totalExpenses.toLocaleString()}`,
+            `Opening Balance: KES ${openingBalance.toLocaleString()} | Total Sales: KES ${totalSales.toLocaleString()} | Total Expenses: KES ${totalExpenses.toLocaleString()}${collectorText}`,
             netBalance,
             date,
+            collector || null,
             operant,
         ],
     );
 
     addNotification(
         "Day Closed",
-        `${dateLabel} closed by ${operant}. Net Balance B/F: KES ${netBalance.toLocaleString()}`,
+        `${dateLabel} closed by ${operant}${collector ? `. Cash collected by ${collector}` : ""}. Net Balance B/F: KES ${netBalance.toLocaleString()}`,
         "day_close",
     );
 }

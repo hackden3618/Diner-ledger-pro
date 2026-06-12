@@ -23,14 +23,14 @@ export default function HomeScreen() {
 
     const cashToday = todayTx
         .filter((t) => t.type === "sale" && t.paymentMethod === "cash")
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + t.amount, 0) + openingBalance;
 
     const mpesaToday = todayTx
         .filter((t) => t.type === "sale" && t.paymentMethod === "mpesa")
         .reduce((sum, t) => sum + t.amount, 0);
 
     const expensesToday = todayTx
-        .filter((t) => t.type === "expense")
+        .filter((t) => t.type === "expense" || t.type === "creditor_payment")
         .reduce((sum, t) => sum + t.amount, 0);
 
     const purchasesToday = todayTx
@@ -44,14 +44,14 @@ export default function HomeScreen() {
     const grossProfitToday = totalSalesToday - purchasesToday;
     const netProfitToday = grossProfitToday - expensesToday;
 
-    const moneyInHouse = (openingBalance + cashToday + mpesaToday) - (expensesToday + purchasesToday);
+    const moneyInHouse = (cashToday + mpesaToday) - (expensesToday + purchasesToday);
 
     // Global Debtors / Creditors
-    const totalDebts = debtors.reduce((sum, d) => sum + Math.max(0, d.totalOwed - d.totalPaid), 0);
-    const activeDebtorsCount = debtors.filter(d => (d.totalOwed - d.totalPaid) > 0).length;
+    const totalDebts = debtors.reduce((sum, d) => sum + (d.totalOwed - d.totalPaid), 0);
+    const activeDebtorsCount = debtors.filter(d => (d.totalOwed - d.totalPaid) !== 0).length;
 
-    const totalCreditors = creditors.reduce((sum, c) => sum + Math.max(0, c.totalOwed - c.totalPaid), 0);
-    const activeCreditorsCount = creditors.filter(c => (c.totalOwed - c.totalPaid) > 0).length;
+    const totalCreditors = creditors.reduce((sum, c) => sum + (c.totalOwed - c.totalPaid), 0);
+    const activeCreditorsCount = creditors.filter(c => (c.totalOwed - c.totalPaid) !== 0).length;
 
     return (
         <ScrollView
@@ -91,8 +91,17 @@ export default function HomeScreen() {
                             KES {moneyInHouse.toLocaleString()}
                         </Text>
                     </View>
-                    <View className="bg-primary/10 px-2 py-1 rounded-[6px]">
-                        <Text className="text-[10px] font-bold text-primary">Cash & Mpesa</Text>
+                    <View className="flex-row rounded-xl h-full flex-1 ml-3 p-18 justify-around bg-muted">
+                        <View className="flex-1 justify-around items-center" 
+                            style={{borderRightWidth: 1, borderRightColor: "grey" }}
+                        >
+                            <Text className="text-primary font-bold">Cash</Text>
+                            <Text className="text-info font-bold">KES {cashToday.toLocaleString()}</Text>
+                        </View>
+                        <View className="flex-1 justify-around items-center" >
+                            <Text className="text-primary font-bold">M-Pesa</Text>
+                            <Text className="text-info font-bold">KES {mpesaToday.toLocaleString()}</Text>
+                        </View>
                     </View>
                 </View>
             </View>
@@ -104,13 +113,13 @@ export default function HomeScreen() {
                         <Text className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] mb-1">
                             To be Collected
                         </Text>
-                        <Text className="text-[28px] font-bold text-foreground">
+                        <Text className={`text-[28px] font-bold ${totalDebts < 0 ? 'text-primary' : 'text-foreground'}`}>
                             KES {totalDebts.toLocaleString()}
                         </Text>
                     </View>
                     {activeDebtorsCount > 0 && (
-                        <View className="bg-destructive/10 px-2 py-1 rounded-[6px]">
-                            <Text className="text-[10px] font-bold text-destructive">{activeDebtorsCount} Accounts</Text>
+                        <View className={`${totalDebts < 0 ? 'bg-primary/10' : 'bg-destructive/10'} px-2 py-1 rounded-[6px]`}>
+                            <Text className={`text-[10px] font-bold ${totalDebts < 0 ? 'text-primary' : 'text-destructive'}`}>{activeDebtorsCount} Accounts</Text>
                         </View>
                     )}
                 </View>
@@ -121,15 +130,15 @@ export default function HomeScreen() {
                 <View className="flex-row justify-between items-start">
                     <View>
                         <Text className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] mb-1">
-                            Amount We Owe (To pay out)
+                            Amount We Owe
                         </Text>
-                        <Text className="text-[28px] font-bold text-foreground">
+                        <Text className={`text-[28px] font-bold ${totalCreditors < 0 ? 'text-primary' : 'text-foreground'}`}>
                             KES {totalCreditors.toLocaleString()}
                         </Text>
                     </View>
                     {activeCreditorsCount > 0 && (
-                        <View className="bg-warning/10 px-2 py-1 rounded-[6px]">
-                            <Text className="text-[10px] font-bold text-warning">{activeCreditorsCount} Suppliers</Text>
+                        <View className={`${totalCreditors < 0 ? 'bg-primary/10' : 'bg-warning/10'} px-2 py-1 rounded-[6px]`}>
+                            <Text className={`text-[10px] font-bold ${totalCreditors < 0 ? 'text-primary' : 'text-warning'}`}>{activeCreditorsCount} Suppliers</Text>
                         </View>
                     )}
                 </View>

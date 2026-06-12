@@ -45,7 +45,8 @@ export default function SettingsScreen() {
     const [staffOperants, setStaffOperants] = useState("");
     const [suppliers, setSuppliers] = useState("");
     const [lockOBInput, setLockOBInput] = useState(false);
-    const [openingDay, setOpeningDay] = useState("");
+    const [obSeeder, setObSeeder] = useState("");
+    const [seeder, setSeeder] = useState("Management");
 
 
     useEffect(() => {
@@ -55,6 +56,23 @@ export default function SettingsScreen() {
         setStaffOperants(savedStaff || "John, Jane");
         const savedSuppliers = getSetting("suppliers");
         setSuppliers(savedSuppliers || "General");
+
+        // Check if OB is locked for today
+        const obSeededDate = getSetting("ob_seeded_date");
+        const today = new Date().toDateString();
+        const savedSeeder = getSetting("ob_seeder");
+
+        if (obSeededDate === today) {
+            setLockOBInput(true);
+            setObSeeder(savedSeeder || "Management");
+        } else {
+            setLockOBInput(false);
+            setObSeeder("");
+            // Auto-reset opening balance display to 0 on new day
+            setOpenBalance("0");
+            updateSetting("opening_balance", "0");
+            refreshAll();
+        }
     }, [businessName]);
 
     // ─── Today's summary ─────────────────────────────────────────────────────────
@@ -87,16 +105,21 @@ export default function SettingsScreen() {
     });
 
     const now = new Date().toDateString();
+
     const handleSaveOpeningBalance = () => {
-        Alert.alert(`Old day ${openingDay} vs new day ${now}`)
-        if (now == openingDay) { 
-            Alert.alert("Restricted", "You already set the opening balance for the day")
+        const obSeededDate = getSetting("ob_seeded_date");
+        if (obSeededDate === now) {
+            Alert.alert("Restricted", "You already set the opening balance for the day \nRecord extra money as sales");
+            return;
         }
         const val = (openingBalance);
         if (isNaN(val) || val < 0) {
             Alert.alert("Invalid", "Opening balance must be a non-negative number.");
             return;
         }
+
+        // Get the current operant (who is seeding)
+
         Alert.alert("Confirm Input Locking", "This will lock the input for the day! \nContinue?", [
             { text: "Cancel", style: "cancel" },
             {
@@ -104,15 +127,18 @@ export default function SettingsScreen() {
                 style: "destructive",
                 onPress: () => {
                     updateSetting("opening_balance", String(val));
-                    setOpeningDay(now);
+                    updateSetting("ob_seeded_date", now);
+                    updateSetting("ob_seeder", seeder);
                     setLockOBInput(true);
+                    setObSeeder(seeder);
                     addTransaction(
                         "seed",
                         "Opening Balance for the day " + dateFormated,
-                        "Seed capital",
-                        openingBalance,
+                        "Seed capital - Double-entry: Debit Cash, Credit Capital/Equity",
+                        val,
                         "cash",
-                        "Management",
+                        undefined,
+                        seeder,
                     );
                     Alert.alert("✅ Saved", "Opening balance updated.");
                 }
@@ -140,6 +166,8 @@ export default function SettingsScreen() {
         Alert.alert("✅ Saved", "Suppliers list updated.");
     };
 
+    const [collectorName, setCollectorName] = useState("");
+
     const handleCloseDay = () => {
         if (!closeDayOperant.trim()) {
             Alert.alert(
@@ -162,8 +190,9 @@ export default function SettingsScreen() {
                     text: "Close Day",
                     style: "destructive",
                     onPress: () => {
-                        closeDay(closeDayOperant.trim());
+                        closeDay(closeDayOperant.trim(), collectorName.trim() || undefined);
                         setCloseDayOperant("");
+                        setCollectorName("");
                         setLockOBInput(false);
                         Alert.alert(
                             "✅ Day Closed",
@@ -220,24 +249,28 @@ export default function SettingsScreen() {
                         onChangeText={setOpenBalance}
                         editable={!lockOBInput}
                     />
+
+                    {/* Seeder field — OPTIONAL*/}
+                    <View className="mb-4">
+                        <ActionDropdown
+                            label="CAPITAL PROVIDED BY — STAFF NAME (OPTIONAL)"
+                            value={seeder}
+                            onChange={setSeeder}
+                            options={staffOperants.split(',').map(s => s.trim()).filter(Boolean)}
+                            modalTitle="Select Capital Seeder"
+                        />
+                    </View>
+
                     <InfoAlert message={
                         <Text>
                             <Text className="text-warning font-bold">Note! </Text>
                             Once the opening balance is saved, there is no more room for saving it for the day
+                            {obSeeder && <Text> (Seeded by {obSeeder})</Text>}
                         </Text>}
                     />
                     <TouchableOpacity
                         className="bg-input border-[0.5px] border-primary/30 rounded-[10px] py-3 items-center justify-center"
-                        onPress={
-                            lockOBInput ?
-                                () => {
-                                    Alert.alert(
-                                        "Restricted",
-                                        "The opening balance is currently disabled\
-                                    \nRecord extra money as a sale")
-                                } :
-                                handleSaveOpeningBalance
-                        }
+                        onPress={handleSaveOpeningBalance}
                     >
                         <Text className="text-[12px] font-bold text-primary">
                             {
@@ -377,6 +410,18 @@ export default function SettingsScreen() {
                             onChange={setCloseDayOperant}
                             options={staffOperants.split(',').map(s => s.trim()).filter(Boolean)}
                             modalTitle="Select Staff"
+                            isRequired
+                        />
+                    </View>
+
+                    {/* Collector field — REQUIRED */}
+                    <View className="mb-4">
+                        <ActionDropdown
+                            label="CASH COLLECTED BY — STAFF NAME"
+                            value={collectorName}
+                            onChange={setCollectorName}
+                            options={staffOperants.split(',').map(s => s.trim()).filter(Boolean)}
+                            modalTitle="Select Collector"
                             isRequired
                         />
                     </View>

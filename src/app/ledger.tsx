@@ -52,7 +52,7 @@ export default function LedgerScreen() {
 
     const totalDr = filtered
         .filter((t) =>
-            ["expense", "purchase", "takeaway", "consumed"].includes(t.type),
+            ["expense", "debtor", "purchase", "takeaway", "consumed"].includes(t.type),
         )
         .reduce((s, t) => s + t.amount, 0);
 
@@ -60,9 +60,9 @@ export default function LedgerScreen() {
         .filter((t) =>
             ["sale", "debtor_payment", "creditor_payment"].includes(t.type),
         )
-        .reduce((s, t) => s + t.amount, 0);
+        .reduce((s, t) => s + t.amount, 0) + openingBalance;
 
-    const trialBalance = openingBalance + totalCr - totalDr;
+    const trialBalance = totalCr - totalDr;
 
     const handleGeneratePDF = async () => {
         setGenerating(true);

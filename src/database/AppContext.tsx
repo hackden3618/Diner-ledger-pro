@@ -68,11 +68,12 @@ interface AppContextType {
     // Sales
     recordSale: (
         items: { mealId: number; name: string; qty: number; price: number }[],
-        saleType: "dinein" | "takeaway" | "credit" | "consumed",
+        saleType: "dinein" | "credit" | "consumed",
         paymentMethod: "cash" | "mpesa" | "credit" | "none",
         operant: string,
         referenceName?: string,
         amountPaid?: number,
+        consumedDescription?: string,
     ) => void;
 
     // Takeout System
@@ -163,7 +164,7 @@ interface AppContextType {
     updateRawInventoryStock: (id: number, newStock: number) => void;
 
     // Day Close
-    closeDay: (operant: string) => void;
+    closeDay: (operant: string, collector?: string) => void;
 
     // Notifications
     clearAllNotifs: () => void;
@@ -245,7 +246,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                                 .reduce((s, t) => s + t.amount, 0);
                             const netBalance = openingBalance + totalSales - totalExpenses;
 
-                            dbCloseDay(openingBalance, totalSales, totalExpenses, netBalance, "System (Auto)");
+                            dbCloseDay(openingBalance, totalSales, totalExpenses, netBalance, "System (Auto)", undefined);
                             updateSetting("last_auto_close_date", todayStr);
                             refreshAll();
                         } else {
@@ -283,11 +284,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // ─── Record Sale ────────────────────────────────────────────────────────────
     const recordSale = (
         items: { mealId: number; name: string; qty: number; price: number }[],
-        saleType: "dinein" | "takeaway" | "credit" | "consumed",
+        saleType: "dinein" | "credit" | "consumed",
         paymentMethod: "cash" | "mpesa" | "credit" | "none",
         operant: string,
         referenceName?: string,
         amountPaid?: number,
+        consumedDescription?: string,
     ) => {
         try {
             let totalAmt = 0;
@@ -321,10 +323,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const itemsText = itemSummaries.join(" · ");
 
             if (saleType === "consumed") {
+                // Double-entry: Debit Expense (internal consumption), Credit Inventory
                 addTransaction(
                     "consumed",
                     "Meals Consumed (Internal)",
-                    itemsText,
+                    consumedDescription || itemsText,
                     totalAmt,
                     "none",
                     referenceName,
@@ -336,25 +339,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     `${itemsText} consumed locally · by ${operant}`,
                     "flow",
                 );
-            } else if (saleType === "takeaway") {
-                addTransaction(
-                    "takeaway",
-                    "Meal Taken Out",
-                    itemsText,
-                    totalAmt,
-                    "none",
-                    referenceName,
-                    operant,
-                    lineItems,
-                );
-                addNotification(
-                    "Meal Taken Away",
-                    `${itemsText} taken out by ${referenceName || "customer"
-                    } · logged by ${operant}`,
-                    "flow",
-                );
             } else if (saleType === "credit") {
                 const debtorName = referenceName || "Walk-in Debtor";
+                // Double-entry: Debit Accounts Receivable, Credit Sales Revenue
                 addTransaction(
                     "sale",
                     `Credit Sale — ${debtorName}`,
@@ -374,28 +361,120 @@ export function AppProvider({ children }: { children: ReactNode }) {
             } else if (saleType === "dinein") {
                 // Dine-in
                 const methodLabel = paymentMethod === "mpesa" ? "M-Pesa" : "Cash";
+
+                // Check if customer has negative debtor balance (we owe them)
+                let netAmount = totalAmt;
+                let debtorAdjustment = 0;
+
+                if (referenceName && referenceName.trim() !== "") {
+                    const existingDebtor = getDebtors().find(d => d.name === referenceName);
+                    if (existingDebtor) {
+                        const debtorBalance = existingDebtor.totalOwed - existingDebtor.totalPaid;
+                        if (debtorBalance < 0) {
+                            // We owe them (negative balance)
+                            // Apply their credit to the sale
+                            const creditAmount = Math.abs(debtorBalance);
+                            if (creditAmount >= totalAmt) {
+                                // Their credit covers the full sale
+                                debtorAdjustment = totalAmt;
+                                netAmount = 0;
+                            } else {
+                                // Their credit covers part of the sale
+                                debtorAdjustment = creditAmount;
+                                netAmount = totalAmt - creditAmount;
+                            }
+                        }
+                    }
+                }
+
+                // Double-entry: Debit Cash/M-Pesa, Credit Sales Revenue
                 addTransaction(
                     "sale",
                     `Sale — ${methodLabel}`,
                     itemsText,
                     totalAmt,
                     paymentMethod,
-                    undefined,
+                    referenceName,
                     operant,
                     lineItems,
                 );
-            }
 
-            // Check for overpayment
-            if ((saleType === "dinein" || saleType === "takeaway") && amountPaid !== undefined && amountPaid > totalAmt) {
-                const overpayAmount = amountPaid - totalAmt;
-                if (referenceName && referenceName.trim() !== "") {
-                    updateCreditor(referenceName, overpayAmount, 0, undefined);
+                // Adjust debtor balance if they had negative balance
+                if (debtorAdjustment > 0) {
+                    updateDebtor(referenceName!, debtorAdjustment, 0);
                     addNotification(
-                        "Overpayment Recorded",
-                        `Customer ${referenceName} overpaid by KES ${overpayAmount}. Added to creditors.`,
+                        "Credit Applied",
+                        `Applied KES ${debtorAdjustment} from ${referenceName}'s negative balance to sale.`,
                         "payment"
                     );
+                }
+            }
+
+            // Check for underpayment (customer pays less than required)
+            if (saleType === "dinein" && amountPaid !== undefined && amountPaid < totalAmt && amountPaid > 0) {
+                const underpayAmount = totalAmt - amountPaid;
+                if (referenceName && referenceName.trim() !== "") {
+                    // Customer underpaid - record partial payment and add as debtor
+                    // Double-entry: Debit Cash/M-Pesa (amountPaid), Credit Sales Revenue (amountPaid)
+                    // Debit Accounts Receivable (underpayAmount), Credit Sales Revenue (underpayAmount)
+                    addTransaction(
+                        "sale",
+                        `Partial Payment — ${referenceName}`,
+                        itemsText,
+                        amountPaid,
+                        paymentMethod,
+                        referenceName,
+                        operant,
+                        lineItems,
+                    );
+                    // Record the unpaid portion as credit sale
+                    addTransaction(
+                        "sale",
+                        `Credit Sale (Unpaid) — ${referenceName}`,
+                        itemsText,
+                        underpayAmount,
+                        "credit",
+                        referenceName,
+                        operant,
+                        lineItems,
+                    );
+                    updateDebtor(referenceName, underpayAmount, 0);
+                    addNotification(
+                        "Partial Payment Recorded",
+                        `Customer ${referenceName} paid KES ${amountPaid} of KES ${totalAmt}. Owes KES ${underpayAmount}.`,
+                        "payment"
+                    );
+                    refreshAll();
+                    return;
+                }
+            }
+
+            // Check for overpayment (customer pays more than required)
+            if (saleType === "dinein" && amountPaid !== undefined && amountPaid > totalAmt) {
+                const overpayAmount = amountPaid - totalAmt;
+                if (referenceName && referenceName.trim() !== "") {
+                    // Customer overpaid - record full sale and create negative debtor balance
+                    // Double-entry: Debit Cash/M-Pesa (amountPaid), Credit Sales Revenue (totalAmt)
+                    // Create negative debtor balance (we owe them)
+                    addTransaction(
+                        "sale",
+                        `Sale — ${paymentMethod === "mpesa" ? "M-Pesa" : "Cash"}`,
+                        itemsText,
+                        totalAmt,
+                        paymentMethod,
+                        referenceName,
+                        operant,
+                        lineItems,
+                    );
+                    // Create negative debtor balance (we owe them)
+                    updateDebtor(referenceName, -overpayAmount, 0);
+                    addNotification(
+                        "Overpayment Recorded",
+                        `Customer ${referenceName} overpaid by KES ${overpayAmount}. We now owe them this amount.`,
+                        "payment"
+                    );
+                    refreshAll();
+                    return;
                 }
             }
 
@@ -509,6 +588,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         operant: string,
     ) => {
         try {
+            // Double-entry: Debit Expense, Credit Cash/M-Pesa
             addTransaction(
                 "expense",
                 `Expense — ${title}`,
@@ -524,7 +604,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    // ─── Record Purchase ────────────────────────────────────────────────────────
     const recordPurchase = (
         title: string,
         amount: number,
@@ -532,72 +611,149 @@ export function AppProvider({ children }: { children: ReactNode }) {
         supplierName: string,
         operant: string,
         supplierPhone?: string,
-        paymentDifference?: number,
     ) => {
         try {
             const isCredited = paymentMethod === "credit";
-            addTransaction(
-                "purchase",
-                `${isCredited ? "Credited" : "Paid"} Purchase`,
-                title,
-                amount,
-                paymentMethod,
-                supplierName,
-                operant,
-            );
             if (isCredited) {
-                updateCreditor(supplierName, amount, 0, supplierPhone);
-            }
+                const creditAmount = -amount;
+                const existingCreditor = getCreditors().find
+                    (supplier => supplier.name === supplierName);
+                if (existingCreditor) {
+                    const creditorBalance = existingCreditor.totalOwed - existingCreditor.totalPaid;
+                    const newTotalOwed = creditAmount + creditorBalance;
 
-            // Handle payment difference for creditor account
-            if (paymentDifference !== undefined && paymentDifference !== 0) {
-                if (paymentDifference < 0) {
-                    // Paid less than expected - business owes the difference (supplier becomes/remains creditor)
-                    updateCreditor(
-                        supplierName,
-                        Math.abs(paymentDifference),
-                        0,
-                        supplierPhone,
-                    );
-                } else if (paymentDifference > 0) {
-                    // Paid more than expected - supplier owes the difference (supplier becomes debtor)
-                    updateDebtor(supplierName, paymentDifference, 0, supplierPhone);
-                    addNotification(
-                        "Overpayment Recorded",
-                        `Overpaid supplier ${supplierName} by KES ${paymentDifference}. Added to debtors.`,
-                        "payment"
-                    );
+                    existingCreditor.totalOwed = newTotalOwed;
                 }
-            }
 
-            // Auto-add to raw inventory
-            const existingItems = getInventoryItems();
-            const match = existingItems.find(
-                (item) => item.name.toLowerCase() === title.trim().toLowerCase(),
-            );
-            if (match) {
-                // Increment existing stock
-                updateInventoryStock(match.id, match.stockLevel + 1);
-                addNotification(
-                    "Stock Updated",
-                    `${match.name} stock incremented from purchase`,
-                    "stock",
+                addTransaction(
+                    "credited_purchase",
+                    "Credited Purchase",
+                    title,
+                    creditAmount,
+                    "credit",
+                    supplierName,
+                    operant,
                 );
+                updateCreditor(supplierName, creditAmount, 0, supplierPhone);
             } else {
-                // Add new raw ingredient
-                addInventoryItem(title.trim(), 1, "units", amount);
-                addNotification(
-                    "New Stock Item",
-                    `${title.trim()} added to raw inventory from purchase`,
-                    "stock",
-                );
+                addTransaction(
+                    "purchase",
+                    "Purchase",
+                    title,
+                    amount,
+                    "credit",
+                    supplierName,
+                    operant,
+                )
             }
-
             refreshAll();
         } catch (error) {
             console.error("Error recording purchase:", error);
         }
-    };
+
+    }
+
+    // ─── Record Purchase ────────────────────────────────────────────────────────
+    // const recordPurchase = (
+    //     title: string,
+    //     amount: number,
+    //     paymentMethod: "cash" | "mpesa" | "credit",
+    //     supplierName: string,
+    //     operant: string,
+    //     supplierPhone?: string,
+    //     paymentDifference?: number,
+    // ) => {
+    //     try {
+    //         const isCredited = paymentMethod === "credit";
+    //
+    //         // Full payment or full credit - no partial payment
+    //         // Check if supplier has negative creditor balance (they owe us)
+    //         const existingCreditor = getCreditors().find(c => c.name === supplierName);
+    //         let netAmount = amount;
+    //         let creditorAdjustment = 0;
+    //
+    //         if (existingCreditor) {
+    //             const creditorBalance = existingCreditor.totalOwed - existingCreditor.totalPaid;
+    //             if (creditorBalance < 0) {
+    //                 // Supplier owes us (negative balance)
+    //                 // Deduct from their debt first
+    //                 const debtAmount = Math.abs(creditorBalance);
+    //                 if (debtAmount >= amount) {
+    //                     // Their debt covers the full purchase
+    //                     creditorAdjustment = amount;
+    //                     netAmount = 0;
+    //                 } else {
+    //                     // Their debt covers part of the purchase
+    //                     creditorAdjustment = debtAmount;
+    //                     netAmount = amount - debtAmount;
+    //                 }
+    //             }
+    //         }
+    //
+    //         if (isCredited) {
+    //             // Full credit purchase
+    //             // Double-entry: Debit Expense, Credit Accounts Payable
+    //             addTransaction(
+    //                 "purchase",
+    //                 "Credited Purchase",
+    //                 title,
+    //                 amount,
+    //                 "credit",
+    //                 supplierName,
+    //                 operant,
+    //             );
+    //             updateCreditor(supplierName, amount, 0, supplierPhone);
+    //         } else if (netAmount > 0) {
+    //             // Full cash/mpesa purchase (after creditor adjustment)
+    //             // Double-entry: Debit Expense, Credit Cash/M-Pesa
+    //             addTransaction(
+    //                 "purchase",
+    //                 "Paid Purchase",
+    //                 title,
+    //                 netAmount,
+    //                 paymentMethod,
+    //                 supplierName,
+    //                 operant,
+    //             );
+    //         }
+    //
+    //         // Adjust creditor balance if they had negative balance
+    //         if (creditorAdjustment > 0) {
+    //             updateCreditor(supplierName, creditorAdjustment, 0, supplierPhone);
+    //             addNotification(
+    //                 "Credit Applied",
+    //                 `Applied KES ${creditorAdjustment} from ${supplierName}'s negative balance to purchase.`,
+    //                 "payment"
+    //             );
+    //         }
+    //
+    //         // Auto-add to raw inventory
+    //         const existingItems = getInventoryItems();
+    //         const match = existingItems.find(
+    //             (item) => item.name.toLowerCase() === title.trim().toLowerCase(),
+    //         );
+    //         if (match) {
+    //             // Increment existing stock
+    //             updateInventoryStock(match.id, match.stockLevel + 1);
+    //             addNotification(
+    //                 "Stock Updated",
+    //                 `${match.name} stock incremented from purchase`,
+    //                 "stock",
+    //             );
+    //         } else {
+    //             // Add new raw ingredient
+    //             addInventoryItem(title.trim(), 1, "units", amount);
+    //             addNotification(
+    //                 "New Stock Item",
+    //                 `${title.trim()} added to raw inventory from purchase`,
+    //                 "stock",
+    //             );
+    //         }
+    //
+    //     } catch (error) {
+    //         console.error("Error recording purchase:", error);
+    //     }
+    // };
 
     // ─── Record Debtor Payment ──────────────────────────────────────────────────
     const recordDebtorPayment = (
@@ -609,16 +765,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         try {
             const existingDebtor = getDebtors().find(d => d.name === debtorName);
             let amountToClearDebtor = amount;
-            let overpayAmount = 0;
 
             if (existingDebtor) {
                 const balance = existingDebtor.totalOwed - existingDebtor.totalPaid;
                 if (amount > balance) {
-                    overpayAmount = amount - balance;
+                    // Overpayment - clear what's owed and create negative balance (we owe them)
                     amountToClearDebtor = balance;
                 }
             }
 
+            // Double-entry: Debit Cash/M-Pesa, Credit Accounts Receivable
             addTransaction(
                 "debtor_payment",
                 `Debtor Payment — ${debtorName}`,
@@ -633,11 +789,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 updateDebtor(debtorName, 0, amountToClearDebtor);
             }
 
-            if (overpayAmount > 0) {
-                updateCreditor(debtorName, overpayAmount, 0, undefined);
+            // If overpaid, create negative debtor balance (we owe them)
+            if (existingDebtor && amount > (existingDebtor.totalOwed - existingDebtor.totalPaid)) {
+                const overpayAmount = amount - (existingDebtor.totalOwed - existingDebtor.totalPaid);
+                updateDebtor(debtorName, -overpayAmount, 0);
                 addNotification(
                     "Overpayment Recorded",
-                    `${debtorName} overpaid by KES ${overpayAmount}. Added to creditors.`,
+                    `${debtorName} overpaid by KES ${overpayAmount}. We now owe them this amount.`,
                     "payment"
                 );
             }
@@ -657,17 +815,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ) => {
         try {
             const existingCreditor = getCreditors().find(c => c.name === creditorName);
-            let amountToClearCreditor = amount;
-            let overpayAmount = 0;
+            let amountPaidToCreditor = amount;
 
             if (existingCreditor) {
-                const balance = existingCreditor.totalOwed - existingCreditor.totalPaid;
-                if (amount > balance) {
-                    overpayAmount = amount - balance;
-                    amountToClearCreditor = balance;
-                }
+                updateCreditor(creditorName, 0, amountPaidToCreditor);
             }
-
+            else {
+                updateCreditor(creditorName, 0, amount)
+            }
             addTransaction(
                 "creditor_payment",
                 `Paid Creditor — ${creditorName}`,
@@ -678,16 +833,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 operant,
             );
 
-            if (amountToClearCreditor > 0) {
-                updateCreditor(creditorName, -amountToClearCreditor, 0);
-            }
-
-            if (overpayAmount > 0) {
-                // Creditor is overpaid, they become a debtor!
-                updateDebtor(creditorName, overpayAmount, 0, undefined);
+            if (existingCreditor && amount > (existingCreditor.totalOwed - existingCreditor.totalPaid)) {
+                const overpayAmount = amount - (existingCreditor.totalOwed - existingCreditor.totalPaid);
                 addNotification(
                     "Overpayment Recorded",
-                    `Overpaid supplier ${creditorName} by KES ${overpayAmount}. Added to debtors.`,
+                    `Overpaid supplier ${creditorName} by KES ${overpayAmount}. They now owe us this amount.`,
                     "payment"
                 );
             }
@@ -786,7 +936,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
 
     // ─── Day Close ──────────────────────────────────────────────────────────────
-    const closeDay = (operant: string) => {
+    const closeDay = (operant: string, collector?: string) => {
         try {
             const today = new Date().toDateString();
             const todayTx = transactions.filter(
@@ -799,7 +949,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 .filter((t) => t.type === "expense" || t.type === "purchase")
                 .reduce((s, t) => s + t.amount, 0);
             const netBalance = openingBalance + totalSales - totalExpenses;
-            dbCloseDay(openingBalance, totalSales, totalExpenses, netBalance, operant);
+            dbCloseDay(openingBalance, totalSales, totalExpenses, netBalance, operant, collector);
             refreshAll();
         } catch (error) {
             console.error("Error closing day:", error);

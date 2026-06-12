@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Alert, ScrollView } from 'react-native';
 import { useApp } from '@/database/AppContext';
 import { getSetting } from '@/database/db';
 import { useRouter } from 'expo-router';
@@ -15,10 +15,11 @@ export default function RecordSaleScreen() {
 
   const [operant, setOperant] = useState("");
   const [selectedSaleItems, setSelectedSaleItems] = useState<{ [mealId: number]: number }>({});
-  const [saleType, setSaleType] = useState<"dinein" | "takeaway" | "credit" | "consumed">("dinein");
+  const [saleType, setSaleType] = useState<"dinein" | "credit" | "consumed">("dinein");
   const [salePaymentMethod, setSalePaymentMethod] = useState<"cash" | "mpesa">("cash");
   const [saleReferenceName, setSaleReferenceName] = useState("");
   const [saleAmountPaid, setSaleAmountPaid] = useState("");
+  const [consumedDescription, setConsumedDescription] = useState("");
 
   const savedStaff = getSetting("staff_operants");
   const staffMembers = savedStaff
@@ -69,13 +70,20 @@ export default function RecordSaleScreen() {
       return;
     }
 
-    if (saleType === "takeaway" && !saleReferenceName.trim() && (!saleAmountPaid || parseFloat(saleAmountPaid) <= runningTotal)) {
-      Alert.alert("Recipient Required", "Specify who is taking out the meals.");
+    if (saleType === "consumed" && !consumedDescription.trim()) {
+      Alert.alert("Description Required", "Please provide a description for the internal consumption.");
       return;
     }
 
     const amtPaid = parseFloat(saleAmountPaid);
-    if (!isNaN(amtPaid) && amtPaid > runningTotal && !saleReferenceName.trim() && (saleType === "dinein" || saleType === "takeaway")) {
+    // Require customer name for underpayment (paid less than required)
+    if (!isNaN(amtPaid) && amtPaid > 0 && amtPaid < runningTotal && !saleReferenceName.trim() && saleType === "dinein") {
+      Alert.alert("Customer Name Required", "Customer underpaid. Please provide their name to register the debt.");
+      return;
+    }
+
+    // Require customer name for overpayment (paid more than required)
+    if (!isNaN(amtPaid) && amtPaid > runningTotal && !saleReferenceName.trim() && saleType === "dinein") {
       Alert.alert("Customer Name Required", "Customer overpaid. Please provide their name to register the credit.");
       return;
     }
@@ -102,7 +110,8 @@ export default function RecordSaleScreen() {
       resolvedPayMethod,
       operant.trim(),
       saleReferenceName.trim() || undefined,
-      !isNaN(amtPaid) ? amtPaid : undefined
+      !isNaN(amtPaid) ? amtPaid : undefined,
+      consumedDescription.trim() || undefined
     );
 
     Alert.alert("Transaction Successful", "Sale recorded successfully.", [
@@ -198,14 +207,14 @@ export default function RecordSaleScreen() {
           <View className="mb-6">
             <Text className="text-[11px] font-bold text-muted-foreground tracking-[1px] mb-3 uppercase">Sale Type</Text>
             <View className="flex-row bg-input rounded-[12px] p-1 gap-1">
-              {(["dinein", "takeaway", "credit", "consumed"] as const).map((type) => (
+              {(["dinein", "credit", "consumed"] as const).map((type) => (
                 <TouchableOpacity
                   key={type}
                   className={`flex-1 py-3 items-center rounded-[10px] ${saleType === type ? "bg-card border border-border-strong shadow-sm" : ""}`}
                   onPress={() => setSaleType(type)}
                 >
                   <Text className={`text-[11px] font-medium ${saleType === type ? "text-primary font-bold" : "text-muted-foreground"}`}>
-                    {type === "dinein" ? "Dine-In" : type === "takeaway" ? "Take-Out" : type === "credit" ? "Credit" : "Internal"}
+                    {type === "dinein" ? "Dine-In" : type === "credit" ? "Credit" : "Internal"}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -226,21 +235,23 @@ export default function RecordSaleScreen() {
             </View>
           )}
 
-          {saleType === "takeaway" && (
+          
+
+          {saleType === "consumed" && (
             <View className="mb-6">
-              <Text className="text-[11px] font-bold text-muted-foreground tracking-[1px] mb-2 uppercase">Taken Out By</Text>
+              <Text className="text-[11px] font-bold text-muted-foreground tracking-[1px] mb-2 uppercase">Description (Required)</Text>
               <TextInput
                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
-                placeholder="Customer or staff name..."
+                placeholder="Who consumed this and why?"
                 placeholderTextColor="var(--muted-dark)"
-                value={saleReferenceName}
-                onChangeText={setSaleReferenceName}
-                autoCapitalize="words"
+                value={consumedDescription}
+                onChangeText={setConsumedDescription}
+                autoCapitalize="sentences"
               />
             </View>
           )}
 
-          {(saleType === "dinein" || saleType === "takeaway") && (
+          {saleType === "dinein" && (
             <View className="mb-6">
               <Text className="text-[11px] font-bold text-muted-foreground tracking-[1px] mb-3 uppercase">Payment Method</Text>
               <View className="flex-row bg-input rounded-[12px] p-1 gap-1">
@@ -267,14 +278,22 @@ export default function RecordSaleScreen() {
                 onChangeText={setSaleAmountPaid}
               />
 
-              {parseFloat(saleAmountPaid) > runningTotal && saleType === "dinein" && (
+              {parseFloat(saleAmountPaid) > 0 && parseFloat(saleAmountPaid) !== runningTotal && saleType === "dinein" && (
                  <View className="mt-4">
-                   <InfoAlert message={
-                     <Text>
-                       If the customer pays more than the total amount, the excess will be securely stored as <Text className="font-bold text-primary">credit</Text> in their account for future use.
-                     </Text>
-                   } />
-                   <Text className="text-[11px] font-bold text-muted-foreground tracking-[1px] mb-2 uppercase">Customer Name (For Overpayment Credit)</Text>
+                   {parseFloat(saleAmountPaid) > runningTotal ? (
+                     <InfoAlert message={
+                       <Text>
+                         Customer overpaid by KES {(parseFloat(saleAmountPaid) - runningTotal).toLocaleString()}. The excess will be stored as <Text className="font-bold text-primary">credit</Text> in their account.
+                       </Text>
+                     } />
+                   ) : (
+                     <InfoAlert message={
+                       <Text>
+                         Customer underpaid by KES {(runningTotal - parseFloat(saleAmountPaid)).toLocaleString()}. The balance will be added to their <Text className="font-bold text-primary">debt</Text>.
+                       </Text>
+                     } />
+                   )}
+                   <Text className="text-[11px] font-bold text-muted-foreground tracking-[1px] mb-2 uppercase">Customer Name (Required)</Text>
                    <TextInput
                      className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                      placeholder="Enter customer name..."
