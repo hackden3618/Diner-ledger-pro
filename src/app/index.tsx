@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '@/database/AppContext';
 
@@ -23,6 +23,8 @@ type TabName = 'home' | 'transactions' | 'inventory' | 'debtors' | 'settings';
 export default function Index() {
   const { businessName, unreadNotifsCount } = useApp();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const tabBarBottomInset = Math.max(insets.bottom, 8);
   
   // App State
   const [currentTab, setCurrentTab] = useState<TabName>('home');
@@ -60,7 +62,7 @@ export default function Index() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'var(--background)' }}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: 'var(--background)' }}>
       {/* HEADER SECTION */}
       <View className="flex-row justify-between items-center px-4 pt-2 pb-4">
         <View>
@@ -89,7 +91,7 @@ export default function Index() {
       </View>
 
       {/* CORE VIEWPORT */}
-      <View className="flex-1 px-4 pt-2 pb-24">
+      <View className="flex-1 px-4 pt-2">
         {currentTab === 'home' && <HomeScreen />}
         {currentTab === 'transactions' && <TransactionsScreen />}
         {currentTab === 'inventory' && (
@@ -108,8 +110,7 @@ export default function Index() {
         {currentTab === 'settings' && <SettingsScreen />}
       </View>
 
-      {/* FLOATING TAB BAR */}
-      <FloatingTabBar currentTab={currentTab} setCurrentTab={setCurrentTab} />
+      <FloatingTabBar bottomInset={tabBarBottomInset} currentTab={currentTab} setCurrentTab={setCurrentTab} />
 
       {/* Component-Specific Modals */}
       {paymentModalVisible && <PaymentModal visible onClose={() => setPaymentModalVisible(false)} type="debtor" personName={selectedDebtorName} />}

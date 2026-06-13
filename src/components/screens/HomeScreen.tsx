@@ -3,8 +3,10 @@ import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
     ScrollView,
+    StyleSheet,
     Text,
     TouchableOpacity,
+    useWindowDimensions,
     View,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -12,6 +14,11 @@ import { useRouter } from "expo-router";
 export default function HomeScreen() {
     const { transactions, takeoutSessions, debtors, creditors } = useApp();
     const router = useRouter();
+    const { width } = useWindowDimensions();
+    const isCompact = width < 380;
+    const shouldStackMoneySplit = width < 430;
+    const heroAmountSize = isCompact ? 25 : 32;
+    const cardAmountSize = isCompact ? 24 : 28;
 
     // Compute stats for current day
     const todayTx = transactions.filter((t) => {
@@ -95,7 +102,7 @@ export default function HomeScreen() {
         <ScrollView
             className="flex-1"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 100 }}
+            contentContainerStyle={{ paddingBottom: 24 }}
         >
             <Text className="text-[12px] font-bold text-muted-foreground tracking-[1px] uppercase mb-3">
                 Financial Overview
@@ -108,7 +115,13 @@ export default function HomeScreen() {
                         <Text className="text-[12px] text-primary-foreground/80 uppercase tracking-[0.5px] mb-1">
                             Total Sales (Today)
                         </Text>
-                        <Text className="text-[32px] font-bold text-primary-foreground">
+                        <Text
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.74}
+                            numberOfLines={1}
+                            style={{ fontSize: heroAmountSize }}
+                            className="font-bold text-primary-foreground"
+                        >
                             KES {totalSalesToday.toLocaleString()}
                         </Text>
                     </View>
@@ -120,25 +133,43 @@ export default function HomeScreen() {
 
             {/* 1. Money In-House Card */}
             <View className="bg-card border-[0.5px] border-border-light rounded-[16px] p-5 mb-3 shadow-sm">
-                <View className="flex-row justify-between items-start">
-                    <View>
+                <View style={shouldStackMoneySplit ? styles.stackCard : styles.rowCard}>
+                    <View style={styles.cardPrimary}>
                         <Text className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] mb-1">
                             In-House Money (Today)
                         </Text>
-                        <Text className="text-[32px] font-bold text-foreground">
+                        <Text
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.74}
+                            numberOfLines={1}
+                            style={{ fontSize: heroAmountSize }}
+                            className="font-bold text-foreground"
+                        >
                             KES {moneyInHouse.toLocaleString()}
                         </Text>
                     </View>
-                    <View className="flex-row rounded-xl h-full flex-1 ml-3 p-4 justify-around bg-muted">
-                        <View className="flex-1 justify-around items-center"
-                            style={{ borderRightWidth: 1, borderRightColor: "grey" }}
-                        >
-                            <Text className="text-primary font-bold">Cash</Text>
-                            <Text className="text-info font-bold">KES {(cashAvailableToday).toLocaleString()}</Text>
+                    <View style={[styles.moneySplit, shouldStackMoneySplit ? styles.moneySplitCompact : styles.moneySplitWide]}>
+                        <View style={[styles.moneyPill, !shouldStackMoneySplit && styles.moneyPillDivider]}>
+                            <View style={styles.moneyIcon}>
+                                <Ionicons name="cash-outline" size={15} color="#1f9f55" />
+                            </View>
+                            <View style={styles.moneyText}>
+                                <Text className="text-[11px] text-muted-foreground font-bold uppercase">Cash</Text>
+                                <Text className="text-[14px] text-info font-bold">
+                                    KES {cashAvailableToday.toLocaleString()}
+                                </Text>
+                            </View>
                         </View>
-                        <View className="flex-1 justify-around items-center" >
-                            <Text className="text-primary font-bold">M-Pesa</Text>
-                            <Text className="text-info font-bold">KES {(mpesaAvailableToday).toLocaleString()}</Text>
+                        <View style={styles.moneyPill}>
+                            <View style={styles.moneyIcon}>
+                                <Ionicons name="phone-portrait-outline" size={15} color="#1f9f55" />
+                            </View>
+                            <View style={styles.moneyText}>
+                                <Text className="text-[11px] text-muted-foreground font-bold uppercase">M-Pesa</Text>
+                                <Text className="text-[14px] text-info font-bold">
+                                    KES {mpesaAvailableToday.toLocaleString()}
+                                </Text>
+                            </View>
                         </View>
                     </View>
                 </View>
@@ -151,7 +182,13 @@ export default function HomeScreen() {
                         <Text className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] mb-1">
                             To be Collected
                         </Text>
-                        <Text className={`text-[28px] font-bold ${totalDebts < 0 ? 'text-primary' : 'text-foreground'}`}>
+                        <Text
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.75}
+                            numberOfLines={1}
+                            style={{ fontSize: cardAmountSize }}
+                            className={`font-bold ${totalDebts < 0 ? 'text-primary' : 'text-foreground'}`}
+                        >
                             KES {totalDebts.toLocaleString()}
                         </Text>
                     </View>
@@ -170,7 +207,13 @@ export default function HomeScreen() {
                         <Text className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] mb-1">
                             Amount We Owe
                         </Text>
-                        <Text className={`text-[28px] font-bold ${totalCreditors < 0 ? 'text-primary' : 'text-foreground'}`}>
+                        <Text
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.75}
+                            numberOfLines={1}
+                            style={{ fontSize: cardAmountSize }}
+                            className={`font-bold ${totalCreditors < 0 ? 'text-primary' : 'text-foreground'}`}
+                        >
                             KES {totalCreditors.toLocaleString()}
                         </Text>
                     </View>
@@ -184,20 +227,32 @@ export default function HomeScreen() {
 
             {/* 4. Net Profit Card */}
             <View className="bg-card border-[0.5px] border-border-light rounded-[16px] p-5 mb-6 shadow-sm">
-                <View className="flex-row justify-between items-start">
-                    <View>
+                <View style={isCompact ? styles.profitStack : styles.profitRow}>
+                    <View style={styles.profitBlock}>
                         <Text className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] mb-1">
                             Gross Profit (Today)
                         </Text>
-                        <Text className="text-[32px] font-bold text-foreground">
+                        <Text
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.74}
+                            numberOfLines={1}
+                            style={{ fontSize: heroAmountSize }}
+                            className="font-bold text-foreground"
+                        >
                             KES {grossProfitToday.toLocaleString()}
                         </Text>
                     </View>
-                    <View>
+                    <View style={styles.profitBlock}>
                         <Text className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] mb-1">
                             Net Profit (Today)
                         </Text>
-                        <Text className="text-[32px] font-bold text-foreground">
+                        <Text
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.74}
+                            numberOfLines={1}
+                            style={{ fontSize: heroAmountSize }}
+                            className="font-bold text-foreground"
+                        >
                             KES {netProfitToday.toLocaleString()}
                         </Text>
                     </View>
@@ -209,9 +264,10 @@ export default function HomeScreen() {
             </Text>
 
             {/* QUICK ACTIONS ROW */}
-            <View className="flex-row gap-3 mb-6">
+            <View style={styles.actionsGrid}>
                 <TouchableOpacity
-                    className="flex-1 bg-card border-[0.5px] border-border-light py-4 rounded-[12px] items-center justify-center shadow-sm"
+                    style={[styles.actionButton, isCompact ? styles.actionButtonCompact : styles.actionButtonWide]}
+                    className="bg-card border-[0.5px] border-border-light py-4 rounded-[12px] items-center justify-center shadow-sm"
                     onPress={() => router.push('/record-sale')}
                 >
                     <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center mb-2">
@@ -221,7 +277,8 @@ export default function HomeScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    className="flex-1 bg-card border-[0.5px] border-border-light py-4 rounded-[12px] items-center justify-center shadow-sm"
+                    style={[styles.actionButton, isCompact ? styles.actionButtonCompact : styles.actionButtonWide]}
+                    className="bg-card border-[0.5px] border-border-light py-4 rounded-[12px] items-center justify-center shadow-sm"
                     onPress={() => router.push('/record-expense')}
                 >
                     <View className="w-10 h-10 rounded-full bg-destructive/10 items-center justify-center mb-2">
@@ -231,7 +288,8 @@ export default function HomeScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    className="flex-1 bg-card border-[0.5px] border-border-light py-4 rounded-[12px] items-center justify-center shadow-sm"
+                    style={[styles.actionButton, isCompact ? styles.actionButtonCompact : styles.actionButtonWide]}
+                    className="bg-card border-[0.5px] border-border-light py-4 rounded-[12px] items-center justify-center shadow-sm"
                     onPress={() => router.push('/record-purchase')}
                 >
                     <View className="w-10 h-10 rounded-full bg-info/10 items-center justify-center mb-2">
@@ -241,7 +299,8 @@ export default function HomeScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    className="flex-1 bg-card border-[0.5px] border-border-light py-4 rounded-[12px] items-center justify-center shadow-sm"
+                    style={[styles.actionButton, isCompact ? styles.actionButtonCompact : styles.actionButtonWide]}
+                    className="bg-card border-[0.5px] border-border-light py-4 rounded-[12px] items-center justify-center shadow-sm"
                     onPress={() => router.push('/dispatch-takeout')}
                 >
                     <View className="w-10 h-10 rounded-full bg-warning/10 items-center justify-center mb-2">
@@ -269,11 +328,11 @@ export default function HomeScreen() {
                                     className="flex-row items-center justify-between bg-card border-[0.5px] border-warning/50 p-4 rounded-[12px] shadow-sm"
                                     onPress={() => router.push({ pathname: '/reconcile-takeout', params: { id: session.id } })}
                                 >
-                                    <View className="flex-row items-center gap-3">
+                                    <View className="flex-row items-center gap-3 flex-1 mr-2">
                                         <View className="w-10 h-10 rounded-full bg-warning/10 items-center justify-center">
                                             <Ionicons name="bicycle" size={20} color="#f39c12" />
                                         </View>
-                                        <View>
+                                        <View className="flex-1">
                                             <Text className="text-[14px] font-bold text-foreground">
                                                 {session.staffName}
                                             </Text>
@@ -282,7 +341,7 @@ export default function HomeScreen() {
                                             </Text>
                                         </View>
                                     </View>
-                                    <View className="bg-warning px-3 py-1.5 rounded-[8px]">
+                                    <View className="bg-warning px-2.5 py-1.5 rounded-[8px]">
                                         <Text className="text-[11px] font-bold text-primary-foreground">
                                             Reconcile
                                         </Text>
@@ -328,17 +387,20 @@ export default function HomeScreen() {
                                         color={txColor}
                                     />
                                 </View>
-                                <View className="flex-1">
-                                    <Text className="text-[14px] font-bold text-foreground">
+                                <View className="flex-1 min-w-0">
+                                    <Text numberOfLines={1} className="text-[14px] font-bold text-foreground">
                                         {tx.title}
                                     </Text>
-                                    <Text className="text-[11px] text-muted-foreground mt-[2px]">
+                                    <Text numberOfLines={2} className="text-[11px] text-muted-foreground mt-[2px]">
                                         {tx.description}
                                     </Text>
                                 </View>
                                 <Text
                                     style={{ color: txColor }}
-                                    className="text-[14px] font-bold"
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.75}
+                                    className="text-[13px] font-bold max-w-[98px] text-right"
                                 >
                                     {isFlow
                                         ? "Flow"
@@ -357,3 +419,87 @@ export default function HomeScreen() {
         </ScrollView>
     );
 }
+
+const styles = StyleSheet.create({
+    rowCard: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        gap: 12,
+    },
+    stackCard: {
+        gap: 14,
+    },
+    cardPrimary: {
+        flexShrink: 1,
+        minWidth: 0,
+    },
+    moneySplit: {
+        borderRadius: 14,
+        backgroundColor: "rgba(237, 242, 238, 0.95)",
+        overflow: "hidden",
+    },
+    moneySplitWide: {
+        flex: 1,
+        minWidth: 138,
+        flexDirection: "row",
+        alignSelf: "stretch",
+    },
+    moneySplitCompact: {
+        flexDirection: "column",
+    },
+    moneyPill: {
+        flex: 1,
+        minWidth: 0,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+    },
+    moneyPillDivider: {
+        borderRightWidth: StyleSheet.hairlineWidth,
+        borderRightColor: "rgba(107, 122, 109, 0.35)",
+    },
+    moneyIcon: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: "rgba(46, 204, 113, 0.12)",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    moneyText: {
+        flex: 1,
+        minWidth: 0,
+    },
+    profitRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        gap: 16,
+    },
+    profitStack: {
+        gap: 14,
+    },
+    profitBlock: {
+        flex: 1,
+        minWidth: 0,
+    },
+    actionsGrid: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 12,
+        marginBottom: 24,
+    },
+    actionButton: {
+        minHeight: 100,
+    },
+    actionButtonWide: {
+        flex: 1,
+        minWidth: 0,
+    },
+    actionButtonCompact: {
+        flexBasis: "47%",
+        flexGrow: 1,
+    },
+});

@@ -1,18 +1,20 @@
 import { useApp } from "@/database/AppContext";
 import React from "react";
 import { Text, TouchableOpacity, View, FlatList } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import ScreenHeader from "@/components/ui/ScreenHeader";
 
 export default function NotificationsScreen() {
   const { notifications, clearAllNotifs } = useApp();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 12);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: 'var(--background)' }}>
       <ScreenHeader title="System Notifications" subtitle="Alerts and messages" />
-      <View className="flex-1 w-full p-4 bg-background">
+      <View className="flex-1 w-full px-4 pt-4 bg-background" style={{ paddingBottom: bottomInset }}>
         <FlatList
           data={notifications}
               keyExtractor={(item, idx) => `${item.id}-${idx}`}

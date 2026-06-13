@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, Alert, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, TouchableOpacity, TextInput, Alert, ScrollView, KeyboardAvoidingView } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '@/database/AppContext';
 import { useRouter } from 'expo-router';
@@ -11,6 +11,8 @@ import InfoAlert from '@/components/ui/InfoAlert';
 export default function DispatchTakeoutScreen() {
   const { meals, dispatchTakeout, transactions } = useApp();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 12);
   const [staffName, setStaffName] = useState('');
   const [selectedItems, setSelectedItems] = useState<{ mealId: number; name: string; qty: number; price: number }[]>([]);
 
@@ -93,7 +95,8 @@ export default function DispatchTakeoutScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: 'var(--background)' }}>
       <ScreenHeader title="Dispatch Takeout" subtitle="Assign goods for outside catering" />
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: bottomInset + 16 }} keyboardShouldPersistTaps="handled">
 
           <View className="px-5 pt-4">
             <InfoAlert message={
@@ -155,7 +158,10 @@ export default function DispatchTakeoutScreen() {
             })}
           </View>
 
-          <View className="flex-row gap-2 px-5 pb-5 pt-3 border-t-[0.5px] border-border bg-background">
+          <View
+            className="flex-row gap-2 px-5 pt-3 border-t-[0.5px] border-border bg-background"
+            style={{ paddingBottom: bottomInset }}
+          >
             <View className="flex-1 bg-card rounded-[10px] justify-center px-4">
               <Text className="text-[10px] text-muted-foreground">Total Items</Text>
               <Text className="text-[14px] font-bold text-primary">{totalItems}</Text>
@@ -167,7 +173,8 @@ export default function DispatchTakeoutScreen() {
               <Text className="text-[13px] font-bold text-background">Dispatch Session</Text>
             </TouchableOpacity>
           </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

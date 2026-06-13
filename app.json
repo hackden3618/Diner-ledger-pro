@@ -43,6 +43,12 @@
         }
       ],
       "expo-font",
+      [
+        "expo-notifications",
+        {
+          "color": "#31CE78"
+        }
+      ],
       "expo-sqlite",
       "expo-web-browser"
     ],

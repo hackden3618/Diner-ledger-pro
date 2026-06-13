@@ -1,53 +1,89 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Platform } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 type TabName = 'home' | 'transactions' | 'inventory' | 'debtors' | 'settings';
 
 type FloatingTabBarProps = {
+  bottomInset: number;
   currentTab: TabName;
   setCurrentTab: (tab: TabName) => void;
 };
 
-export default function FloatingTabBar({ currentTab, setCurrentTab }: FloatingTabBarProps) {
-  // We use inline shadow styles for Platform specific shadows as Tailwind support for complex shadows in React Native can be limited.
-  // Alternatively, standard tailwind classes can be used but might not match exactly.
-  // Converting as close as possible with Tailwind: `shadow-lg shadow-black/40 elevation-8`
-  
+const tabs: { name: TabName; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { name: 'home', label: 'Home', icon: 'home-sharp' },
+  { name: 'transactions', label: 'History', icon: 'list' },
+  { name: 'inventory', label: 'Stock', icon: 'grid' },
+  { name: 'debtors', label: 'Debts', icon: 'people' },
+  { name: 'settings', label: 'Settings', icon: 'settings' },
+];
+
+export default function FloatingTabBar({ bottomInset, currentTab, setCurrentTab }: FloatingTabBarProps) {
   return (
-    <View 
-      className="absolute bottom-5 left-4 right-4 h-[72px] rounded-[36px] bg-card border-[0.8px] border-border flex-row items-center justify-around px-2 shadow-lg shadow-black/40 elevation-8"
-      style={Platform.OS === 'ios' ? {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.4,
-        shadowRadius: 12,
-      } : {}}
-    >
-      <TouchableOpacity hitSlop={{ top: 15, bottom: 15, left: 10, right: 10 }} className="flex-1 items-center justify-center h-full" onPress={() => setCurrentTab('home')}>
-        <Ionicons name="home-sharp" size={24} color={currentTab === 'home' ? '#2ecc71' : '#a1b0a3'} />
-        <Text className={`text-[10px] mt-1 ${currentTab === 'home' ? 'text-primary' : 'text-muted-dark'}`}>Home</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity hitSlop={{ top: 15, bottom: 15, left: 10, right: 10 }} className="flex-1 items-center justify-center h-full" onPress={() => setCurrentTab('transactions')}>
-        <Ionicons name="list" size={24} color={currentTab === 'transactions' ? '#2ecc71' : '#a1b0a3'} />
-        <Text className={`text-[10px] mt-1 ${currentTab === 'transactions' ? 'text-primary' : 'text-muted-dark'}`}>History</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity hitSlop={{ top: 15, bottom: 15, left: 10, right: 10 }} className="flex-1 items-center justify-center h-full" onPress={() => setCurrentTab('inventory')}>
-        <Ionicons name="grid" size={24} color={currentTab === 'inventory' ? '#2ecc71' : '#a1b0a3'} />
-        <Text className={`text-[10px] mt-1 ${currentTab === 'inventory' ? 'text-primary' : 'text-muted-dark'}`}>Stock</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity hitSlop={{ top: 15, bottom: 15, left: 10, right: 10 }} className="flex-1 items-center justify-center h-full" onPress={() => setCurrentTab('debtors')}>
-        <Ionicons name="people" size={24} color={currentTab === 'debtors' ? '#2ecc71' : '#a1b0a3'} />
-        <Text className={`text-[10px] mt-1 ${currentTab === 'debtors' ? 'text-primary' : 'text-muted-dark'}`}>Debts</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity hitSlop={{ top: 15, bottom: 15, left: 10, right: 10 }} className="flex-1 items-center justify-center h-full" onPress={() => setCurrentTab('settings')}>
-        <Ionicons name="settings" size={24} color={currentTab === 'settings' ? '#2ecc71' : '#a1b0a3'} />
-        <Text className={`text-[10px] mt-1 ${currentTab === 'settings' ? 'text-primary' : 'text-muted-dark'}`}>Settings</Text>
-      </TouchableOpacity>
+    <View style={[styles.shell, { paddingBottom: bottomInset }]}>
+      <View style={styles.items}>
+        {tabs.map((tab) => {
+          const isActive = currentTab === tab.name;
+
+          return (
+            <TouchableOpacity
+              key={tab.name}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isActive }}
+              hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+              onPress={() => setCurrentTab(tab.name)}
+              style={styles.item}
+            >
+              <Ionicons name={tab.icon} size={21} color={isActive ? '#1f9f55' : '#879689'} />
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+                style={[styles.label, isActive ? styles.activeLabel : styles.inactiveLabel]}
+              >
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  shell: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#dbe4dd',
+    backgroundColor: '#fbfdfb',
+    shadowColor: '#0f2015',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  items: {
+    height: 58,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    paddingHorizontal: 4,
+  },
+  item: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+  },
+  label: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    maxWidth: '100%',
+  },
+  activeLabel: {
+    color: '#1f9f55',
+  },
+  inactiveLabel: {
+    color: '#7d8d80',
+  },
+});

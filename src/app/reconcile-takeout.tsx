@@ -1,15 +1,19 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Alert, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Alert, ScrollView, useWindowDimensions } from 'react-native';
 import { useApp } from "@/database/AppContext";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import ScreenHeader from "@/components/ui/ScreenHeader";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function ReconcileTakeoutScreen() {
   const { reconcileTakeout, takeoutSessions } = useApp();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const bottomInset = Math.max(insets.bottom, 12);
+  const isCompact = width < 380;
 
   const [session, setSession] = useState<any>(null);
 
@@ -204,7 +208,7 @@ export default function ReconcileTakeoutScreen() {
         style={{ flex: 1 }}
       >
         <ScrollView 
-          contentContainerStyle={{ padding: 24, paddingBottom: 120 }} 
+          contentContainerStyle={{ padding: 24, paddingBottom: bottomInset + 112 }} 
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -306,7 +310,7 @@ export default function ReconcileTakeoutScreen() {
               Split the total between Cash and M-Pesa (must sum to expected amount)
             </Text>
             
-            <View className="flex-row gap-3">
+            <View className={`${isCompact ? 'gap-3' : 'flex-row gap-3'}`}>
               <View className="flex-1">
                 <Text className="text-[10px] font-bold text-primary mb-1.5 uppercase tracking-[0.5px]">Cash</Text>
                 <View className="flex-row items-center bg-card border border-primary/30 rounded-[16px] px-4 py-2 h-[60px] shadow-sm">
@@ -343,7 +347,10 @@ export default function ReconcileTakeoutScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <View className="absolute bottom-0 w-full p-6 bg-background/95 border-t border-border-light pt-4 shadow-lg">
+      <View
+        className="absolute bottom-0 w-full px-6 bg-background border-t border-border-light pt-4 shadow-lg"
+        style={{ paddingBottom: bottomInset }}
+      >
         <TouchableOpacity 
           className="w-full bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm" 
           onPress={handleSave}

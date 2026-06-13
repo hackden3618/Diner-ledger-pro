@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '@/database/AppContext';
 
@@ -9,17 +9,23 @@ export default function TransactionsScreen() {
   const [txFilter, setTxFilter] = useState<'all' | 'sale' | 'credit' | 'takeaway' | 'expense' | 'purchase'>('all');
 
   return (
-    <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
-      <View className="flex-row items-center bg-muted border-[0.5px] border-border-strong rounded-[10px] px-3 py-2 mb-[10px]">
-        <Ionicons name="search" size={18} color="#6b7a6d" />
-        <TextInput
-          className="flex-1 text-foreground text-[13px] p-0 ml-2"
-          placeholder="Search history..."
-          placeholderTextColor="#6b7a6d"
-          value={txSearch}
-          onChangeText={setTxSearch}
-        />
-      </View>
+    <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 80 }}
+      >
+        <View className="flex-row items-center bg-muted border-[0.5px] border-border-strong rounded-[10px] px-3 py-2 mb-[10px]">
+          <Ionicons name="search" size={18} color="#6b7a6d" />
+          <TextInput
+            className="flex-1 text-foreground text-[13px] p-0 ml-2"
+            placeholder="Search history..."
+            placeholderTextColor="#6b7a6d"
+            value={txSearch}
+            onChangeText={setTxSearch}
+          />
+        </View>
 
       {/* Filter pills */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row mb-3">
@@ -82,6 +88,7 @@ export default function TransactionsScreen() {
             );
           })}
       </View>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

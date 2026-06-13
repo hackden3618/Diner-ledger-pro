@@ -7,11 +7,13 @@ import ScreenHeader from '@/components/ui/ScreenHeader';
 import ActionDropdown from '@/components/ui/ActionDropdown';
 import ProductImage from '@/components/ui/ProductImage';
 import InfoAlert from '@/components/ui/InfoAlert';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function RecordSaleScreen() {
     const { meals, recordSale, transactions } = useApp();
     const router = useRouter();
+    const insets = useSafeAreaInsets();
+    const bottomInset = Math.max(insets.bottom, 12);
 
     const [operant, setOperant] = useState("");
     const [selectedSaleItems, setSelectedSaleItems] = useState<{ [mealId: number]: number }>({});
@@ -134,7 +136,7 @@ export default function RecordSaleScreen() {
                 style={{ flex: 1 }}
             >
                 <ScrollView
-                    contentContainerStyle={{ padding: 24, paddingBottom: 100 }}
+                    contentContainerStyle={{ padding: 24, paddingBottom: bottomInset + 136 }}
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
                 >
@@ -317,7 +319,10 @@ export default function RecordSaleScreen() {
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            <View className="absolute bottom-0 w-full bg-background/95 border-t border-border-light pt-4 pb-6 px-6 shadow-lg">
+            <View
+                className="absolute bottom-0 w-full bg-background border-t border-border-light pt-4 px-6 shadow-lg"
+                style={{ paddingBottom: bottomInset }}
+            >
                 <View className="flex-row justify-between items-center mb-4 px-2">
                     <Text className="text-[13px] text-muted-foreground uppercase tracking-[1px]">Total Due</Text>
                     <Text className="text-[20px] font-bold text-primary">KES {runningTotal.toLocaleString()}</Text>

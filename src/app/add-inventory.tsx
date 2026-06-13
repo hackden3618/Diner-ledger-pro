@@ -5,12 +5,14 @@ import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '@/database/AppContext';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import ScreenHeader from '@/components/ui/ScreenHeader';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AddInventoryScreen() {
   const { addRawInventoryItem, updateRawInventoryItem, inventoryItems } = useApp();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 12);
   
   const editingItem = id ? inventoryItems.find(i => i.id === parseInt(id, 10)) : undefined;
 
@@ -76,7 +78,7 @@ export default function AddInventoryScreen() {
         style={{ flex: 1 }}
       >
         <ScrollView 
-          contentContainerStyle={{ padding: 24, paddingBottom: 100 }} 
+          contentContainerStyle={{ padding: 24, paddingBottom: bottomInset + 104 }} 
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -148,7 +150,10 @@ export default function AddInventoryScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <View className="absolute bottom-0 w-full p-6 bg-background/90 border-t border-border-light pt-4">
+      <View
+        className="absolute bottom-0 w-full px-6 bg-background border-t border-border-light pt-4"
+        style={{ paddingBottom: bottomInset }}
+      >
         <TouchableOpacity 
           className="w-full bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm" 
           onPress={handleSave}

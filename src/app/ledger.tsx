@@ -4,7 +4,7 @@ import { generateLedgerPDF } from "@/utils/pdfGenerator";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import { Alert, ScrollView, Text, TouchableOpacity, View, FlatList } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import ScreenHeader from "@/components/ui/ScreenHeader";
 
 type Period = "today" | "week" | "month" | "year" | "all";
@@ -27,6 +27,8 @@ export default function LedgerScreen() {
         setReportPeriod,
     } = useApp();
     const [generating, setGenerating] = useState(false);
+    const insets = useSafeAreaInsets();
+    const bottomInset = Math.max(insets.bottom, 12);
 
     const filtered = useMemo(() => {
         const now = new Date();
@@ -262,7 +264,7 @@ export default function LedgerScreen() {
                 />
 
                 {/* PDF Button */}
-                <View className="px-4 pb-8 pt-2 border-t border-border">
+                <View className="px-4 pt-2 border-t border-border" style={{ paddingBottom: bottomInset }}>
                     <TouchableOpacity
                         className={`flex-row items-center justify-center py-3 rounded-[12px] gap-2 ${generating ? "bg-muted" : "bg-primary"
                             }`}

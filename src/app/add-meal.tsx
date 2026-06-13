@@ -5,13 +5,15 @@ import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '@/database/AppContext';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import ScreenHeader from '@/components/ui/ScreenHeader';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SEEDED_MENU_IMAGES, isSeededMenuImageKey } from '@/utils/menuItemImages';
 
 export default function AddMealScreen() {
   const { addNewMeal, updateMeal, deleteMeal, meals } = useApp();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 12);
   
   const editingMeal = id ? meals.find(m => m.id === parseInt(id, 10)) : undefined;
 
@@ -110,7 +112,7 @@ export default function AddMealScreen() {
         style={{ flex: 1 }}
       >
         <ScrollView 
-          contentContainerStyle={{ padding: 24, paddingBottom: 100 }} 
+          contentContainerStyle={{ padding: 24, paddingBottom: bottomInset + 108 }} 
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -218,7 +220,10 @@ export default function AddMealScreen() {
       </KeyboardAvoidingView>
 
       {/* Floating Action Button area at bottom */}
-      <View className="absolute bottom-0 w-full px-6 py-4 bg-background/90 border-t border-border-light flex-row gap-3">
+      <View
+        className="absolute bottom-0 w-full px-6 pt-4 bg-background border-t border-border-light flex-row gap-3"
+        style={{ paddingBottom: bottomInset }}
+      >
         {editingMeal && (
           <TouchableOpacity 
             className="flex-1 bg-destructive/10 border border-destructive/30 rounded-[16px] py-4 items-center justify-center" 

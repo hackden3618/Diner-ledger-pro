@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import {
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -35,40 +36,42 @@ export default function InventoryScreen() {
   };
 
   return (
-    <View className="flex-1 bg-muted">
-      {/* Search Header */}
-      <View className="bg-card px-4 pt-4 pb-3 border-b border-border-light shadow-sm z-10">
-        <View className="flex-row items-center bg-input border-[0.5px] border-border-strong rounded-[16px] px-4 py-3 mb-4">
-          <Ionicons name="search" size={18} color="#6b7a6d" />
-          <TextInput
-            className="flex-1 text-foreground text-[14px] p-0 ml-2"
-            placeholder="Search menu items..."
-            placeholderTextColor="#a1b0a3"
-            value={search}
-            onChangeText={setSearch}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch("")}>
-              <Ionicons name="close-circle" size={18} color="#a1b0a3" />
-            </TouchableOpacity>
-          )}
+    <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+      <View className="flex-1 bg-muted">
+        {/* Search Header */}
+        <View className="bg-card px-4 pt-4 pb-3 border-b border-border-light shadow-sm z-10">
+          <View className="flex-row items-center bg-input border-[0.5px] border-border-strong rounded-[16px] px-4 py-3 mb-4">
+            <Ionicons name="search" size={18} color="#6b7a6d" />
+            <TextInput
+              className="flex-1 text-foreground text-[14px] p-0 ml-2"
+              placeholder="Search menu items..."
+              placeholderTextColor="#a1b0a3"
+              value={search}
+              onChangeText={setSearch}
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch("")}>
+                <Ionicons name="close-circle" size={18} color="#a1b0a3" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Prominent Add Meal button */}
+          <TouchableOpacity
+            className="bg-primary py-4 rounded-[12px] items-center justify-center flex-row gap-2 shadow-sm"
+            onPress={() => router.push('/add-meal')}
+          >
+            <Ionicons name="add-circle" size={20} color="#ffffff" />
+            <Text className="text-[14px] font-bold text-primary-foreground tracking-[0.5px]">Add New Menu Item</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Prominent Add Meal button */}
-        <TouchableOpacity
-          className="bg-primary py-4 rounded-[12px] items-center justify-center flex-row gap-2 shadow-sm"
-          onPress={() => router.push('/add-meal')}
-        >
-          <Ionicons name="add-circle" size={20} color="#ffffff" />
-          <Text className="text-[14px] font-bold text-primary-foreground tracking-[0.5px]">Add New Menu Item</Text>
-        </TouchableOpacity>
-      </View>
-
-      <FlatList
-        data={filteredMeals}
-        keyExtractor={(item) => item.id.toString()}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+        <FlatList
+          data={filteredMeals}
+          keyExtractor={(item) => item.id.toString()}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
         ListEmptyComponent={
           <View className="items-center py-10 bg-card rounded-[16px] border-[0.5px] border-border-light shadow-sm">
             <Ionicons name="fast-food-outline" size={40} color="#a1b0a3" />
@@ -147,7 +150,8 @@ export default function InventoryScreen() {
             </TouchableOpacity>
           );
         }}
-      />
-    </View>
+        />
+      </View>
+    </KeyboardAvoidingView>
   );
 }

@@ -321,13 +321,14 @@ export default function SettingsScreen() {
     };
 
     return (
-        <View style={{ flex: 1, backgroundColor: 'var(--background)' }}>
-            <ScreenHeader title="Settings" subtitle="Manage your app preferences" showBackButton={false} />
-            <ScrollView
-                contentContainerStyle={{ paddingBottom: 100 }}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-            >
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: 'var(--background)' }}>
+            <View style={{ flex: 1, backgroundColor: 'var(--background)' }}>
+                <ScreenHeader title="Settings" subtitle="Manage your app preferences" showBackButton={false} />
+                <ScrollView
+                    contentContainerStyle={{ paddingBottom: 100 }}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
 
                 <View className="px-5 flex-1">
 
@@ -629,58 +630,57 @@ export default function SettingsScreen() {
                             <Text className="text-[11px] font-bold text-danger mb-2">
                                 Type the security password to confirm deletion of ALL data:
                             </Text>
-                            <KeyboardAvoidingView behavior="padding">
-                                <TextInput
-                                    className="bg-input border-[0.5px] border-danger/40 rounded-[10px] text-foreground text-[13px] px-3 py-2.5 mb-3"
-                                    placeholder="Enter password..."
-                                    placeholderTextColor="#4a5e4c"
-                                    secureTextEntry
-                                    value={resetPassword}
-                                    onChangeText={setResetPassword}
-                                    autoCorrect={false}
-                                />
-                                <View className="flex-row gap-2">
-                                    <TouchableOpacity
-                                        className="flex-1 bg-input border-[0.5px] border-border rounded-[10px] py-3 items-center"
-                                        onPress={() => {
+                            <TextInput
+                                className="bg-input border-[0.5px] border-danger/40 rounded-[10px] text-foreground text-[13px] px-3 py-2.5 mb-3"
+                                placeholder="Enter password..."
+                                placeholderTextColor="#4a5e4c"
+                                secureTextEntry
+                                value={resetPassword}
+                                onChangeText={setResetPassword}
+                                autoCorrect={false}
+                            />
+                            <View className="flex-row gap-2">
+                                <TouchableOpacity
+                                    className="flex-1 bg-input border-[0.5px] border-border rounded-[10px] py-3 items-center"
+                                    onPress={() => {
+                                        setShowResetConfirm(false);
+                                        setResetPassword("");
+                                    }}
+                                >
+                                    <Text className="text-[12px] font-bold text-foreground">
+                                        Cancel
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    className="flex-1 bg-danger rounded-[10px] py-3 items-center"
+                                    onPress={() => {
+                                        if (resetPassword === "killalldata!") {
+                                            resetDatabase();
                                             setShowResetConfirm(false);
                                             setResetPassword("");
-                                        }}
-                                    >
-                                        <Text className="text-[12px] font-bold text-foreground">
-                                            Cancel
-                                        </Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        className="flex-1 bg-danger rounded-[10px] py-3 items-center"
-                                        onPress={() => {
-                                            if (resetPassword === "killalldata!") {
-                                                resetDatabase();
-                                                setShowResetConfirm(false);
-                                                setResetPassword("");
-                                                Alert.alert(
-                                                    "Database Reset",
-                                                    "All data has been wiped. Starting fresh.",
-                                                );
-                                            } else {
-                                                Alert.alert(
-                                                    "Incorrect Password",
-                                                    "The password you entered is wrong. Reset aborted.",
-                                                );
-                                                setResetPassword("");
-                                            }
-                                        }}
-                                    >
-                                        <Text className="text-[12px] font-bold text-white">
-                                            Confirm Delete
-                                        </Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </KeyboardAvoidingView>
+                                            Alert.alert(
+                                                "Database Reset",
+                                                "All data has been wiped. Starting fresh.",
+                                            );
+                                        } else {
+                                            Alert.alert(
+                                                "Incorrect Password",
+                                                "The password you entered is wrong. Reset aborted.",
+                                            );
+                                            setResetPassword("");
+                                        }
+                                    }}
+                                >
+                                    <Text className="text-[12px] font-bold text-white">
+                                        Confirm Delete
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
                     )}
                 </View>
-            </ScrollView>
-        </View>
+                </ScrollView>
+            </View>
+        </KeyboardAvoidingView>
     );
 }
