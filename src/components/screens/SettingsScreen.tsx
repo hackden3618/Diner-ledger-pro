@@ -1,5 +1,5 @@
 import { useApp } from "@/database/AppContext";
-import { getSetting, updateSetting, getMeals, addTransaction } from "@/database/db";
+import { getSetting, updateSetting, getMeals } from "@/database/db";
 import React, { useEffect, useState } from "react";
 import { Alert, Text, TextInput, TouchableOpacity, View, ScrollView, KeyboardAvoidingView } from "react-native";
 import ScreenHeader from "@/components/ui/ScreenHeader";
@@ -36,6 +36,9 @@ export default function SettingsScreen() {
         closeDay,
         resetDatabase,
         refreshAll,
+        setOpeningBalanceWithLock,
+        hasOpeningBalanceToday,
+        recordCollection,
     } = useApp();
 
     const [tempBusinessName, setTempBusinessName] = useState(businessName);
@@ -73,6 +76,9 @@ export default function SettingsScreen() {
             updateSetting("opening_balance", "0");
             refreshAll();
         }
+        // This mount-time settings sync intentionally avoids refreshAll as a dependency;
+        // refreshAll writes state and would turn this initialization into a loop.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [businessName]);
 
     // ─── Today's summary ─────────────────────────────────────────────────────────
@@ -80,14 +86,41 @@ export default function SettingsScreen() {
     const todayTx = transactions.filter(
         (t) => new Date(t.date).toDateString() === today,
     );
-    const todaySales = todayTx
-        .filter((t) => t.type === "sale" || t.type === "takeaway")
-        .reduce((s, t) => s + t.amount, 0);
-    const todayExpenses = todayTx
-        .filter((t) => t.type === "expense" || t.type === "purchase")
-        .reduce((s, t) => s + t.amount, 0);
-    const netBalanceBF = todaySales + (openingBalance) - todayExpenses;
+    // Opening balance should come from today's opening_balance transaction, not global setting
+    const openingBalanceToday = todayTx
+        .filter((t) => t.type === "opening_balance")
+        .reduce((sum, t) => sum + t.amount, 0);
 
+    const debtorPaymentsToday = todayTx
+        .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "cash")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const purchasePaymentsToday = todayTx
+        .filter((t) => t.type === "purchase" && t.paymentMethod === "cash")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const expensesToday = todayTx
+        .filter((t) => t.type === "expense" && t.paymentMethod === "cash")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const paidSalesToday = todayTx
+        .filter((t) => t.type === "sale" && t.paymentMethod === "cash")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const creditorPaymentsToday = todayTx
+        .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "cash")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const collectionsToday = todayTx
+        .filter((t) => t.type === "collection")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const moneyInToday = openingBalanceToday + paidSalesToday + debtorPaymentsToday;
+    const moneyOutToday = purchasePaymentsToday + expensesToday + creditorPaymentsToday + collectionsToday;
+
+    const moneyInHouse = moneyInToday - moneyOutToday;
+
+    // Global Debtors / Creditors
     // ─── Handlers ─────────────────────────────────────────────────────────────────
     const handleSaveBusinessName = () => {
         if (!tempBusinessName.trim()) {
@@ -98,17 +131,11 @@ export default function SettingsScreen() {
         Alert.alert("✅ Saved", "Business name updated successfully.");
     };
 
-    const dateFormated = new Date().toLocaleDateString("en-KE", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-    });
-
     const now = new Date().toDateString();
 
     const handleSaveOpeningBalance = () => {
         const obSeededDate = getSetting("ob_seeded_date");
-        if (obSeededDate === now) {
+        if (obSeededDate === now || hasOpeningBalanceToday()) {
             Alert.alert("Restricted", "You already set the opening balance for the day \nRecord extra money as sales");
             return;
         }
@@ -126,21 +153,22 @@ export default function SettingsScreen() {
                 text: "Proceed",
                 style: "destructive",
                 onPress: () => {
-                    updateSetting("opening_balance", String(val));
-                    updateSetting("ob_seeded_date", now);
-                    updateSetting("ob_seeder", seeder);
-                    setLockOBInput(true);
-                    setObSeeder(seeder);
-                    addTransaction(
-                        "seed",
-                        "Opening Balance for the day " + dateFormated,
-                        "Seed capital - Double-entry: Debit Cash, Credit Capital/Equity",
-                        val,
-                        "cash",
-                        undefined,
-                        seeder,
-                    );
-                    Alert.alert("✅ Saved", "Opening balance updated.");
+                    try {
+                        // Opening balance must be created through the locked accounting path
+                        // so the transaction table remains the source of truth.
+                        setOpeningBalanceWithLock(val, seeder);
+                        updateSetting("ob_seeded_date", now);
+                        updateSetting("ob_seeder", seeder);
+                        setLockOBInput(true);
+                        setObSeeder(seeder);
+                        refreshAll();
+                        Alert.alert("✅ Saved", "Opening balance updated.");
+                    } catch (error) {
+                        Alert.alert(
+                            "Opening Balance Locked",
+                            error instanceof Error ? error.message : "Opening balance could not be saved.",
+                        );
+                    }
                 }
             },
         ])
@@ -179,10 +207,10 @@ export default function SettingsScreen() {
 
         Alert.alert(
             "Close Day?",
-            `This will archive today's activity.\n\nSales: ${fmt(
-                todaySales,
-            )}\nExpenses: ${fmt(todayExpenses)}\nNet B/F: ${fmt(
-                netBalanceBF,
+            `This will archive today's activity.\n\nPaid Sales: ${fmt(
+                paidSalesToday,
+            )}\nExpenses: ${fmt(moneyOutToday)}\nNet B/F: ${fmt(
+                moneyInHouse,
             )}\n\nContinue?`,
             [
                 { text: "Cancel", style: "cancel" },
@@ -190,16 +218,33 @@ export default function SettingsScreen() {
                     text: "Close Day",
                     style: "destructive",
                     onPress: () => {
-                        closeDay(closeDayOperant.trim(), collectorName.trim() || undefined);
-                        setCloseDayOperant("");
-                        setCollectorName("");
-                        setLockOBInput(false);
-                        Alert.alert(
-                            "✅ Day Closed",
-                            `Closed by ${closeDayOperant.trim()}.\nNet Balance B/F: ${fmt(
-                                netBalanceBF,
-                            )} \n\nThe amounts will be reset at midnight!`,
-                        );
+                        try {
+                            const isCollectingCash = Boolean(collectorName.trim()) && moneyInHouse > 0;
+                            const closingBalanceAfterCollection = isCollectingCash ? 0 : moneyInHouse;
+
+                            if (isCollectingCash) {
+                                recordCollection(
+                                    moneyInHouse,
+                                    collectorName.trim(),
+                                    closeDayOperant.trim(),
+                                );
+                            }
+                            closeDay(closeDayOperant.trim(), collectorName.trim() || undefined);
+                            setCloseDayOperant("");
+                            setCollectorName("");
+                            setLockOBInput(false);
+                            Alert.alert(
+                                "✅ Day Closed",
+                                `Closed by ${closeDayOperant.trim()}.\nNet Balance B/F: ${fmt(
+                                    closingBalanceAfterCollection,
+                                )} \n\nThe amounts will be reset at midnight!`,
+                            );
+                        } catch (error) {
+                            Alert.alert(
+                                "Close Day Failed",
+                                error instanceof Error ? error.message : "The day could not be closed.",
+                            );
+                        }
                     },
                 },
             ],
@@ -355,49 +400,49 @@ export default function SettingsScreen() {
 
                     <InfoAlert message={
                         <Text>
-                            Closing the day calculates your net balance, archives today's transactions into the <Text className="font-bold text-primary">Ledger</Text>, and prepares a clean slate for the next day. This happens <Text className="font-bold text-primary">automatically at midnight</Text>, but you can do it manually here, where transactions will be <Text className=" font-bold text-warning">reset at midnight </Text>
+                            Closing the day calculates your net balance, archives {"today's"} transactions into the <Text className="font-bold text-primary">Ledger</Text>, and prepares a clean slate for the next day. This happens <Text className="font-bold text-primary">automatically at midnight</Text>, but you can do it manually here, where transactions will be <Text className=" font-bold text-warning">reset at midnight </Text>
                         </Text>
                     } />
 
                     {/* Today's summary card */}
                     <View className="bg-input border-[0.5px] border-border-light rounded-[14px] p-4 mb-4 gap-2">
                         <Text className="text-[10px] font-bold text-foreground tracking-[0.8px] uppercase mb-1">
-                            Today's Summary
+                            {"Today's Summary"}
                         </Text>
                         <View className="flex-row justify-between pb-3">
                             <Text className="text-[12px] text-foreground">
-                                Today's Opening balance
+                                {"Today's Opening balance"}
                             </Text>
                             <Text className="text-[12px] font-bold text-primary">
-                                {fmt((openingBalance))}
+                                {fmt(openingBalanceToday)}
                             </Text>
                         </View>
                         <View className="flex-row justify-between">
                             <Text className="text-[12px] text-foreground">
-                                Today's Sales
+                                {"Today's Paid Sales"}
                             </Text>
                             <Text className="text-[12px] font-bold text-primary">
-                                {fmt(todaySales)}
+                                {fmt(paidSalesToday)}
                             </Text>
                         </View>
                         <View className="flex-row justify-between">
                             <Text className="text-[12px] text-foreground">
-                                Today's Expenses
+                                {"Today's Expenses"}
                             </Text>
                             <Text className="text-[12px] font-bold text-destructive">
-                                {fmt(todayExpenses)}
+                                {fmt(moneyOutToday)}
                             </Text>
                         </View>
                         <View className="h-[0.5px] bg-white/10 dark:bg-white/5 my-1" />
                         <View className="flex-row justify-between">
                             <Text className="text-[12px] text-foreground">
-                                Net Balance B/F
+                                Net Balance
                             </Text>
                             <Text
-                                className={`text-[13px] font-bold ${netBalanceBF >= 0 ? "text-primary" : "text-destructive"
+                                className={`text-[13px] font-bold ${moneyInHouse >= 0 ? "text-primary" : "text-destructive"
                                     }`}
                             >
-                                {fmt(netBalanceBF)}
+                                {fmt(moneyInHouse)}
                             </Text>
                         </View>
                     </View>
@@ -436,7 +481,7 @@ export default function SettingsScreen() {
                     </TouchableOpacity>
 
                     <Text className="text-[10px] text-warning text-center mt-2 mb-6">
-                        All today's activity will be archived. This cannot be undone.
+                        {"All today's activity will be archived. This cannot be undone."}
                     </Text>
 
                     {/* ── Danger Zone ───────────────────────────────────────── */}

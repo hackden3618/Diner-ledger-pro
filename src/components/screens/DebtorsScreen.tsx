@@ -87,15 +87,21 @@ export default function DebtorsScreen({
                 </View>
 
                 <View className="flex-row gap-2 mt-2">
-                  <TouchableOpacity
-                    className="flex-1 bg-primary items-center justify-center py-[7px] rounded-lg"
-                    onPress={() => {
-                      setSelectedDebtorName(debtor.name);
-                      setPaymentModalVisible(true);
-                    }}
-                  >
-                    <Text className="text-[11px] font-bold text-background">Record Payment</Text>
-                  </TouchableOpacity>
+                  {isNegative ? (
+                    <View className="flex-1 bg-muted items-center justify-center py-[7px] rounded-lg">
+                      <Text className="text-[11px] font-bold text-muted-foreground">Customer Credit</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      className="flex-1 bg-primary items-center justify-center py-[7px] rounded-lg"
+                      onPress={() => {
+                        setSelectedDebtorName(debtor.name);
+                        setPaymentModalVisible(true);
+                      }}
+                    >
+                      <Text className="text-[11px] font-bold text-background">Record Payment</Text>
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity
                     className="w-8 h-8 rounded-lg border-[0.5px] border-destructive/30 bg-destructive/10 items-center justify-center"
                     onPress={() => clearDebtorAccount(debtor.id)}
@@ -147,15 +153,21 @@ export default function DebtorsScreen({
                 </View>
 
                 <View className="flex-row gap-2 mt-2">
-                  <TouchableOpacity
-                    className="flex-1 bg-warning items-center justify-center py-[7px] rounded-lg"
-                    onPress={() => {
-                      setSelectedCreditorName(creditor.name);
-                      setCreditorPayModalVisible(true);
-                    }}
-                  >
-                    <Text className="text-[11px] font-bold text-background">Record Partial Payment</Text>
-                  </TouchableOpacity>
+                  {isNegative ? (
+                    <View className="flex-1 bg-muted items-center justify-center py-[7px] rounded-lg">
+                      <Text className="text-[11px] font-bold text-muted-foreground">Supplier Credit</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      className="flex-1 bg-warning items-center justify-center py-[7px] rounded-lg"
+                      onPress={() => {
+                        setSelectedCreditorName(creditor.name);
+                        setCreditorPayModalVisible(true);
+                      }}
+                    >
+                      <Text className="text-[11px] font-bold text-background">Record Partial Payment</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             );

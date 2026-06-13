@@ -24,11 +24,14 @@ import {
     getSetting,
     getTransactions,
     getUnreadNotificationsCount,
+    hasOpeningBalanceToday,
     initDatabase,
     InventoryItem,
     markNotificationsAsRead,
     Meal,
     Notification,
+    recordCollection as dbRecordCollection,
+    recordOpeningBalance,
     reconcileTakeoutSession,
     resetDatabase,
     setMealAvailability,
@@ -48,6 +51,8 @@ interface AppContextType {
     businessName: string;
     openingBalance: number,
     setOpenBalance: (openBalance: string) => void,
+    setOpeningBalanceWithLock: (amount: number, operant: string) => void,
+    hasOpeningBalanceToday: () => boolean,
     meals: Meal[];
     transactions: Transaction[];
     debtors: Debtor[];
@@ -92,6 +97,7 @@ interface AppContextType {
                 creditSold: number;
             }[];
             totalCash: number;
+            totalMpesa: number;
             globalDebtors: { name: string; amount: number }[];
         },
     ) => void;
@@ -125,6 +131,13 @@ interface AppContextType {
         amount: number,
         paymentMethod: "cash" | "mpesa",
         operant: string,
+    ) => void;
+
+    // Collections
+    recordCollection: (
+        amount: number,
+        collectorName: string,
+        staffHandingOver: string,
     ) => void;
 
     // Meals & Inventory
@@ -238,15 +251,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
                         const hasClosedToday = todayTx.some(t => t.type === 'day_close');
 
                         if (!hasClosedToday) {
+                            // Use the same reconciliation formula as manual closeDay
+                            const cashSales = todayTx
+                                .filter((t) => t.type === "sale" && t.paymentMethod === "cash")
+                                .reduce((s, t) => s + t.amount, 0);
+
+                            const debtorPayments = todayTx
+                                .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "cash")
+                                .reduce((s, t) => s + t.amount, 0);
+
+                            const purchasePayments = todayTx
+                                .filter((t) => t.type === "purchase" && t.paymentMethod === "cash")
+                                .reduce((s, t) => s + t.amount, 0);
+
+                            const expenses = todayTx
+                                .filter((t) => t.type === "expense" && t.paymentMethod === "cash")
+                                .reduce((s, t) => s + t.amount, 0);
+
+                            const creditorPayments = todayTx
+                                .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "cash")
+                                .reduce((s, t) => s + t.amount, 0);
+
+                            const collections = todayTx
+                                .filter((t) => t.type === "collection")
+                                .reduce((s, t) => s + t.amount, 0);
+
                             const totalSales = todayTx
                                 .filter((t) => t.type === "sale")
                                 .reduce((s, t) => s + t.amount, 0);
+
                             const totalExpenses = todayTx
                                 .filter((t) => t.type === "expense" || t.type === "purchase")
                                 .reduce((s, t) => s + t.amount, 0);
-                            const netBalance = openingBalance + totalSales - totalExpenses;
 
-                            dbCloseDay(openingBalance, totalSales, totalExpenses, netBalance, "System (Auto)", undefined);
+                            // Opening balance should come from today's opening_balance transaction, not global setting
+                            const openingBalanceToday = todayTx
+                                .filter((t) => t.type === "opening_balance")
+                                .reduce((s, t) => s + t.amount, 0);
+
+                            const expectedCash = openingBalanceToday + cashSales + debtorPayments - purchasePayments - expenses - creditorPayments - collections;
+                            const netBalance = expectedCash;
+
+                            dbCloseDay(openingBalanceToday, totalSales, totalExpenses, netBalance, "System (Auto)", undefined);
                             updateSetting("last_auto_close_date", todayStr);
                             refreshAll();
                         } else {
@@ -269,6 +315,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const saveBusinessName = (name: string) => {
         updateSetting("business_name", name);
         setBusinessName(name);
+    };
+
+    const setOpeningBalanceWithLock = (amount: number, operant: string) => {
+        // Accounting principle: Opening balance can only be entered once per business day
+        // Once entered, it becomes locked
+        if (hasOpeningBalanceToday()) {
+            throw new Error("Opening balance has already been recorded for today. It is locked.");
+        }
+
+        recordOpeningBalance(amount, operant);
+        setOpenBalance(amount.toString());
+        refreshAll();
+    };
+
+    const recordCollection = (
+        amount: number,
+        collectorName: string,
+        staffHandingOver: string,
+    ) => {
+        try {
+            dbRecordCollection(amount, collectorName, staffHandingOver);
+            refreshAll();
+        } catch (error) {
+            console.error("Error recording collection:", error);
+            throw error;
+        }
     };
 
     const _updateSetting = (key: string, value: string) => {
@@ -296,7 +368,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const itemSummaries: string[] = [];
             const latestMeals = getMeals(); // avoid stale closure
 
-            // Build line items and deduct stock
+            // Build line items first, then validate stock before mutating anything.
+            // This prevents partial stock deductions if a stale screen submits bad quantities.
             const lineItems: {
                 mealName: string;
                 quantity: number;
@@ -311,16 +384,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     unitPrice: item.price,
                 });
 
+            });
+
+            items.forEach((item) => {
                 const currentMeal = latestMeals.find((m) => m.id === item.mealId);
-                if (currentMeal) {
-                    updateMealStock(
-                        item.mealId,
-                        Math.max(0, currentMeal.stock - item.qty),
-                    );
+                if (!currentMeal) {
+                    throw new Error(`${item.name} no longer exists in inventory.`);
+                }
+                if (item.qty <= 0 || item.qty > currentMeal.stock) {
+                    throw new Error(`Cannot record ${item.qty} ${item.name}. Available stock is ${currentMeal.stock}.`);
                 }
             });
 
+            items.forEach((item) => {
+                const currentMeal = latestMeals.find((m) => m.id === item.mealId)!;
+                updateMealStock(item.mealId, currentMeal.stock - item.qty);
+            });
+
             const itemsText = itemSummaries.join(" · ");
+            const paidAmount = saleType === "dinein" ? amountPaid ?? totalAmt : amountPaid;
 
             if (saleType === "consumed") {
                 // Double-entry: Debit Expense (internal consumption), Credit Inventory
@@ -358,36 +440,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     `KES ${totalAmt.toLocaleString()} owed by ${debtorName} · by ${operant}`,
                     "payment",
                 );
-            } else if (saleType === "dinein") {
+            } else if (saleType === "dinein" && paidAmount === totalAmt) {
                 // Dine-in
                 const methodLabel = paymentMethod === "mpesa" ? "M-Pesa" : "Cash";
 
-                // Check if customer has negative debtor balance (we owe them)
-                let netAmount = totalAmt;
-                let debtorAdjustment = 0;
-
-                if (referenceName && referenceName.trim() !== "") {
-                    const existingDebtor = getDebtors().find(d => d.name === referenceName);
-                    if (existingDebtor) {
-                        const debtorBalance = existingDebtor.totalOwed - existingDebtor.totalPaid;
-                        if (debtorBalance < 0) {
-                            // We owe them (negative balance)
-                            // Apply their credit to the sale
-                            const creditAmount = Math.abs(debtorBalance);
-                            if (creditAmount >= totalAmt) {
-                                // Their credit covers the full sale
-                                debtorAdjustment = totalAmt;
-                                netAmount = 0;
-                            } else {
-                                // Their credit covers part of the sale
-                                debtorAdjustment = creditAmount;
-                                netAmount = totalAmt - creditAmount;
-                            }
-                        }
-                    }
-                }
-
-                // Double-entry: Debit Cash/M-Pesa, Credit Sales Revenue
+                // Double-entry: Debit Cash/M-Pesa, Credit Sales Revenue.
+                // Existing customer credits are not silently consumed here; they need
+                // an explicit refund/adjustment workflow to preserve audit clarity.
                 addTransaction(
                     "sale",
                     `Sale — ${methodLabel}`,
@@ -398,50 +457,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     operant,
                     lineItems,
                 );
-
-                // Adjust debtor balance if they had negative balance
-                if (debtorAdjustment > 0) {
-                    updateDebtor(referenceName!, debtorAdjustment, 0);
-                    addNotification(
-                        "Credit Applied",
-                        `Applied KES ${debtorAdjustment} from ${referenceName}'s negative balance to sale.`,
-                        "payment"
-                    );
-                }
             }
 
             // Check for underpayment (customer pays less than required)
-            if (saleType === "dinein" && amountPaid !== undefined && amountPaid < totalAmt && amountPaid > 0) {
-                const underpayAmount = totalAmt - amountPaid;
+            if (saleType === "dinein" && paidAmount !== undefined && paidAmount < totalAmt && paidAmount >= 0) {
+                const underpayAmount = totalAmt - paidAmount;
                 if (referenceName && referenceName.trim() !== "") {
-                    // Customer underpaid - record partial payment and add as debtor
-                    // Double-entry: Debit Cash/M-Pesa (amountPaid), Credit Sales Revenue (amountPaid)
-                    // Debit Accounts Receivable (underpayAmount), Credit Sales Revenue (underpayAmount)
+                    // Underpaid sale: record the full invoice as credit, then the cash received
+                    // as an immediate debtor payment. This keeps revenue complete and avoids
+                    // splitting one sale into duplicate-looking sale records.
                     addTransaction(
                         "sale",
-                        `Partial Payment — ${referenceName}`,
+                        `Credit Sale — ${referenceName}`,
                         itemsText,
-                        amountPaid,
-                        paymentMethod,
-                        referenceName,
-                        operant,
-                        lineItems,
-                    );
-                    // Record the unpaid portion as credit sale
-                    addTransaction(
-                        "sale",
-                        `Credit Sale (Unpaid) — ${referenceName}`,
-                        itemsText,
-                        underpayAmount,
+                        totalAmt,
                         "credit",
                         referenceName,
                         operant,
                         lineItems,
                     );
-                    updateDebtor(referenceName, underpayAmount, 0);
+                    if (paidAmount > 0) {
+                        addTransaction(
+                            "debtor_payment",
+                            `Debtor Payment — ${referenceName}`,
+                            `Immediate partial payment for ${itemsText}`,
+                            paidAmount,
+                            paymentMethod,
+                            referenceName,
+                            operant,
+                        );
+                    }
+                    updateDebtor(referenceName, totalAmt, paidAmount);
                     addNotification(
                         "Partial Payment Recorded",
-                        `Customer ${referenceName} paid KES ${amountPaid} of KES ${totalAmt}. Owes KES ${underpayAmount}.`,
+                        `Customer ${referenceName} paid KES ${paidAmount} of KES ${totalAmt}. Owes KES ${underpayAmount}.`,
                         "payment"
                     );
                     refreshAll();
@@ -450,8 +499,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
 
             // Check for overpayment (customer pays more than required)
-            if (saleType === "dinein" && amountPaid !== undefined && amountPaid > totalAmt) {
-                const overpayAmount = amountPaid - totalAmt;
+            if (saleType === "dinein" && paidAmount !== undefined && paidAmount > totalAmt) {
+                const overpayAmount = paidAmount - totalAmt;
                 if (referenceName && referenceName.trim() !== "") {
                     // Customer overpaid - record full sale and create negative debtor balance
                     // Double-entry: Debit Cash/M-Pesa (amountPaid), Credit Sales Revenue (totalAmt)
@@ -465,6 +514,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
                         referenceName,
                         operant,
                         lineItems,
+                    );
+                    addTransaction(
+                        "debtor_payment",
+                        `Customer Overpayment — ${referenceName}`,
+                        `Excess received on ${itemsText}`,
+                        overpayAmount,
+                        paymentMethod,
+                        referenceName,
+                        operant,
                     );
                     // Create negative debtor balance (we owe them)
                     updateDebtor(referenceName, -overpayAmount, 0);
@@ -481,6 +539,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             refreshAll();
         } catch (error) {
             console.error("Error recording sale:", error);
+            throw error;
         }
     };
 
@@ -493,11 +552,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const latestMeals = getMeals();
             items.forEach((item) => {
                 const currentMeal = latestMeals.find((m) => m.id === item.mealId);
+                if (!currentMeal) {
+                    throw new Error(`${item.name} no longer exists in inventory.`);
+                }
+                if (item.qty <= 0 || item.qty > currentMeal.stock) {
+                    throw new Error(`Cannot dispatch ${item.qty} ${item.name}. Available stock is ${currentMeal.stock}.`);
+                }
+            });
+
+            items.forEach((item) => {
+                const currentMeal = latestMeals.find((m) => m.id === item.mealId);
                 if (currentMeal) {
-                    updateMealStock(
-                        item.mealId,
-                        Math.max(0, currentMeal.stock - item.qty),
-                    );
+                    updateMealStock(item.mealId, currentMeal.stock - item.qty);
                 }
             });
             createTakeoutSession(staffName, items);
@@ -509,6 +575,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             refreshAll();
         } catch (error) {
             console.error("Error dispatching takeout:", error);
+            throw error;
         }
     };
 
@@ -523,6 +590,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 creditSold: number;
             }[];
             totalCash: number;
+            totalMpesa: number;
             globalDebtors: { name: string; amount: number }[];
         },
     ) => {
@@ -568,6 +636,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 );
             }
 
+            // Handle bulk M-Pesa sale
+            if (reconciliationData.totalMpesa > 0) {
+                addTransaction(
+                    "sale",
+                    `Takeout M-Pesa Sales — ${staffName}`,
+                    "Consolidated M-Pesa from outside catering",
+                    reconciliationData.totalMpesa,
+                    "mpesa",
+                    undefined,
+                    staffName,
+                );
+            }
+
             reconcileTakeoutSession(sessionId, JSON.stringify(reconciliationData));
             addNotification(
                 "Takeout Reconciled",
@@ -577,6 +658,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             refreshAll();
         } catch (error) {
             console.error("Error reconciling takeout:", error);
+            throw error;
         }
     };
 
@@ -601,6 +683,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             refreshAll();
         } catch (error) {
             console.error("Error recording expense:", error);
+            throw error;
         }
     };
 
@@ -615,145 +698,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
         try {
             const isCredited = paymentMethod === "credit";
             if (isCredited) {
-                const creditAmount = -amount;
-                const existingCreditor = getCreditors().find
-                    (supplier => supplier.name === supplierName);
-                if (existingCreditor) {
-                    const creditorBalance = existingCreditor.totalOwed - existingCreditor.totalPaid;
-                    const newTotalOwed = creditAmount + creditorBalance;
-
-                    existingCreditor.totalOwed = newTotalOwed;
-                }
-
-                addTransaction(
-                    "credited_purchase",
-                    "Credited Purchase",
-                    title,
-                    creditAmount,
-                    "credit",
-                    supplierName,
-                    operant,
-                );
-                updateCreditor(supplierName, creditAmount, 0, supplierPhone);
-            } else {
+                // Full credit purchase - record full amount to creditor
                 addTransaction(
                     "purchase",
-                    "Purchase",
+                    "Credited Purchase",
                     title,
                     amount,
                     "credit",
                     supplierName,
                     operant,
-                )
+                );
+                updateCreditor(supplierName, amount, 0, supplierPhone);
+            } else {
+                // Cash or M-Pesa purchase - record with actual payment method
+                addTransaction(
+                    "purchase",
+                    "Purchase",
+                    title,
+                    amount,
+                    paymentMethod,
+                    supplierName,
+                    operant,
+                );
+            }
+
+            // Keep the raw inventory register in step with purchase records.
+            // Quantity-specific purchasing is not modeled yet, so each purchase
+            // entry increments or creates one tracked unit for the named item.
+            const existingItems = getInventoryItems();
+            const match = existingItems.find(
+                (item) => item.name.toLowerCase() === title.trim().toLowerCase(),
+            );
+            if (match) {
+                updateInventoryStock(match.id, match.stockLevel + 1);
+            } else {
+                addInventoryItem(title.trim(), 1, "units", amount);
             }
             refreshAll();
         } catch (error) {
             console.error("Error recording purchase:", error);
+            throw error;
         }
 
     }
-
-    // ─── Record Purchase ────────────────────────────────────────────────────────
-    // const recordPurchase = (
-    //     title: string,
-    //     amount: number,
-    //     paymentMethod: "cash" | "mpesa" | "credit",
-    //     supplierName: string,
-    //     operant: string,
-    //     supplierPhone?: string,
-    //     paymentDifference?: number,
-    // ) => {
-    //     try {
-    //         const isCredited = paymentMethod === "credit";
-    //
-    //         // Full payment or full credit - no partial payment
-    //         // Check if supplier has negative creditor balance (they owe us)
-    //         const existingCreditor = getCreditors().find(c => c.name === supplierName);
-    //         let netAmount = amount;
-    //         let creditorAdjustment = 0;
-    //
-    //         if (existingCreditor) {
-    //             const creditorBalance = existingCreditor.totalOwed - existingCreditor.totalPaid;
-    //             if (creditorBalance < 0) {
-    //                 // Supplier owes us (negative balance)
-    //                 // Deduct from their debt first
-    //                 const debtAmount = Math.abs(creditorBalance);
-    //                 if (debtAmount >= amount) {
-    //                     // Their debt covers the full purchase
-    //                     creditorAdjustment = amount;
-    //                     netAmount = 0;
-    //                 } else {
-    //                     // Their debt covers part of the purchase
-    //                     creditorAdjustment = debtAmount;
-    //                     netAmount = amount - debtAmount;
-    //                 }
-    //             }
-    //         }
-    //
-    //         if (isCredited) {
-    //             // Full credit purchase
-    //             // Double-entry: Debit Expense, Credit Accounts Payable
-    //             addTransaction(
-    //                 "purchase",
-    //                 "Credited Purchase",
-    //                 title,
-    //                 amount,
-    //                 "credit",
-    //                 supplierName,
-    //                 operant,
-    //             );
-    //             updateCreditor(supplierName, amount, 0, supplierPhone);
-    //         } else if (netAmount > 0) {
-    //             // Full cash/mpesa purchase (after creditor adjustment)
-    //             // Double-entry: Debit Expense, Credit Cash/M-Pesa
-    //             addTransaction(
-    //                 "purchase",
-    //                 "Paid Purchase",
-    //                 title,
-    //                 netAmount,
-    //                 paymentMethod,
-    //                 supplierName,
-    //                 operant,
-    //             );
-    //         }
-    //
-    //         // Adjust creditor balance if they had negative balance
-    //         if (creditorAdjustment > 0) {
-    //             updateCreditor(supplierName, creditorAdjustment, 0, supplierPhone);
-    //             addNotification(
-    //                 "Credit Applied",
-    //                 `Applied KES ${creditorAdjustment} from ${supplierName}'s negative balance to purchase.`,
-    //                 "payment"
-    //             );
-    //         }
-    //
-    //         // Auto-add to raw inventory
-    //         const existingItems = getInventoryItems();
-    //         const match = existingItems.find(
-    //             (item) => item.name.toLowerCase() === title.trim().toLowerCase(),
-    //         );
-    //         if (match) {
-    //             // Increment existing stock
-    //             updateInventoryStock(match.id, match.stockLevel + 1);
-    //             addNotification(
-    //                 "Stock Updated",
-    //                 `${match.name} stock incremented from purchase`,
-    //                 "stock",
-    //             );
-    //         } else {
-    //             // Add new raw ingredient
-    //             addInventoryItem(title.trim(), 1, "units", amount);
-    //             addNotification(
-    //                 "New Stock Item",
-    //                 `${title.trim()} added to raw inventory from purchase`,
-    //                 "stock",
-    //             );
-    //         }
-    //
-    //     } catch (error) {
-    //         console.error("Error recording purchase:", error);
-    //     }
-    // };
 
     // ─── Record Debtor Payment ──────────────────────────────────────────────────
     const recordDebtorPayment = (
@@ -766,11 +753,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const existingDebtor = getDebtors().find(d => d.name === debtorName);
             let amountToClearDebtor = amount;
 
+            if (!existingDebtor) {
+                throw new Error(`${debtorName} does not have an active debtor account.`);
+            }
+
+            const debtorBalance = existingDebtor.totalOwed - existingDebtor.totalPaid;
+            if (debtorBalance <= 0) {
+                throw new Error(`${debtorName} does not owe money. Record a refund or adjustment instead.`);
+            }
+
             if (existingDebtor) {
-                const balance = existingDebtor.totalOwed - existingDebtor.totalPaid;
-                if (amount > balance) {
+                if (amount > debtorBalance) {
                     // Overpayment - clear what's owed and create negative balance (we owe them)
-                    amountToClearDebtor = balance;
+                    amountToClearDebtor = debtorBalance;
                 }
             }
 
@@ -790,8 +785,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
 
             // If overpaid, create negative debtor balance (we owe them)
-            if (existingDebtor && amount > (existingDebtor.totalOwed - existingDebtor.totalPaid)) {
-                const overpayAmount = amount - (existingDebtor.totalOwed - existingDebtor.totalPaid);
+            if (amount > debtorBalance) {
+                const overpayAmount = amount - debtorBalance;
                 updateDebtor(debtorName, -overpayAmount, 0);
                 addNotification(
                     "Overpayment Recorded",
@@ -803,6 +798,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             refreshAll();
         } catch (error) {
             console.error("Error recording debtor payment:", error);
+            throw error;
         }
     };
 
@@ -817,24 +813,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const existingCreditor = getCreditors().find(c => c.name === creditorName);
             let amountPaidToCreditor = amount;
 
-            if (existingCreditor) {
-                updateCreditor(creditorName, 0, amountPaidToCreditor);
+            if (!existingCreditor) {
+                throw new Error(`${creditorName} does not have an active creditor account.`);
             }
-            else {
-                updateCreditor(creditorName, 0, amount)
-            }
+
+            const creditorBalance = existingCreditor.totalOwed - existingCreditor.totalPaid;
+
+            updateCreditor(creditorName, 0, amountPaidToCreditor);
             addTransaction(
                 "creditor_payment",
-                `Paid Creditor — ${creditorName}`,
-                `Creditor settlement via ${paymentMethod.toUpperCase()} · by ${operant}`,
+                creditorBalance > 0
+                    ? `Paid Creditor — ${creditorName}`
+                    : `Supplier Advance — ${creditorName}`,
+                creditorBalance > 0
+                    ? `Creditor settlement via ${paymentMethod.toUpperCase()} · by ${operant}`
+                    : `Supplier advance via ${paymentMethod.toUpperCase()} · by ${operant}`,
                 amount,
                 paymentMethod,
                 creditorName,
                 operant,
             );
 
-            if (existingCreditor && amount > (existingCreditor.totalOwed - existingCreditor.totalPaid)) {
-                const overpayAmount = amount - (existingCreditor.totalOwed - existingCreditor.totalPaid);
+            if (amount > creditorBalance) {
+                const overpayAmount = amount - creditorBalance;
                 addNotification(
                     "Overpayment Recorded",
                     `Overpaid supplier ${creditorName} by KES ${overpayAmount}. They now owe us this amount.`,
@@ -845,6 +846,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             refreshAll();
         } catch (error) {
             console.error("Error recording creditor payment:", error);
+            throw error;
         }
     };
 
@@ -939,20 +941,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const closeDay = (operant: string, collector?: string) => {
         try {
             const today = new Date().toDateString();
-            const todayTx = transactions.filter(
+            // Read directly from SQLite at close time so immediate writes, such as
+            // collection handovers, cannot be missed by stale React state.
+            const todayTx = getTransactions().filter(
                 (t) => new Date(t.date).toDateString() === today,
             );
+
+            // Accounting principle: Expected Cash = Opening Balance + Cash Sales + Debtor Payments - Purchase Payments - Expenses - Creditor Payments - Collections
+            const cashSales = todayTx
+                .filter((t) => t.type === "sale" && t.paymentMethod === "cash")
+                .reduce((s, t) => s + t.amount, 0);
+
+            const debtorPayments = todayTx
+                .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "cash")
+                .reduce((s, t) => s + t.amount, 0);
+
+            const purchasePayments = todayTx
+                .filter((t) => t.type === "purchase" && t.paymentMethod === "cash")
+                .reduce((s, t) => s + t.amount, 0);
+
+            const expenses = todayTx
+                .filter((t) => t.type === "expense" && t.paymentMethod === "cash")
+                .reduce((s, t) => s + t.amount, 0);
+
+            const creditorPayments = todayTx
+                .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "cash")
+                .reduce((s, t) => s + t.amount, 0);
+
+            const collections = todayTx
+                .filter((t) => t.type === "collection")
+                .reduce((s, t) => s + t.amount, 0);
+
             const totalSales = todayTx
                 .filter((t) => t.type === "sale")
                 .reduce((s, t) => s + t.amount, 0);
+
             const totalExpenses = todayTx
                 .filter((t) => t.type === "expense" || t.type === "purchase")
                 .reduce((s, t) => s + t.amount, 0);
-            const netBalance = openingBalance + totalSales - totalExpenses;
-            dbCloseDay(openingBalance, totalSales, totalExpenses, netBalance, operant, collector);
+
+            // Opening balance should come from today's opening_balance transaction, not global setting
+            const openingBalanceToday = todayTx
+                .filter((t) => t.type === "opening_balance")
+                .reduce((s, t) => s + t.amount, 0);
+
+            const expectedCash = openingBalanceToday + cashSales + debtorPayments - purchasePayments - expenses - creditorPayments - collections;
+            const netBalance = expectedCash;
+
+            dbCloseDay(openingBalanceToday, totalSales, totalExpenses, netBalance, operant, collector);
             refreshAll();
         } catch (error) {
             console.error("Error closing day:", error);
+            throw error;
         }
     };
 
@@ -968,6 +1008,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 businessName,
                 openingBalance,
                 setOpenBalance,
+                setOpeningBalanceWithLock,
+                hasOpeningBalanceToday,
                 meals,
                 transactions,
                 debtors,
@@ -989,6 +1031,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 recordPurchase,
                 recordDebtorPayment,
                 recordCreditorPayment,
+                recordCollection,
                 clearDebtorAccount,
                 addNewMeal,
                 updateMeal,

@@ -1,4 +1,5 @@
 import { useApp } from "@/database/AppContext";
+import { buildCashLedger, buildTrialBalance, summarizeAccounting } from "@/utils/accounting";
 import { generateLedgerPDF } from "@/utils/pdfGenerator";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
@@ -19,7 +20,6 @@ const PERIOD_LABELS: Record<Period, string> = {
 export default function LedgerScreen() {
     const {
         transactions,
-        openingBalance,
         debtors,
         creditors,
         businessName,
@@ -50,19 +50,17 @@ export default function LedgerScreen() {
         });
     }, [transactions, reportPeriod]);
 
-    const totalDr = filtered
-        .filter((t) =>
-            ["expense", "debtor", "purchase", "takeaway", "consumed"].includes(t.type),
-        )
-        .reduce((s, t) => s + t.amount, 0);
-
-    const totalCr = filtered
-        .filter((t) =>
-            ["sale", "debtor_payment", "creditor_payment"].includes(t.type),
-        )
-        .reduce((s, t) => s + t.amount, 0) + openingBalance;
-
-    const trialBalance = totalCr - totalDr;
+    const ledgerEntries = useMemo(() => buildCashLedger(filtered), [filtered]);
+    const summary = useMemo(
+        () => summarizeAccounting(filtered, debtors, creditors),
+        [filtered, debtors, creditors],
+    );
+    const trialBalanceRows = useMemo(
+        () => buildTrialBalance(filtered, debtors, creditors),
+        [filtered, debtors, creditors],
+    );
+    const trialDebitTotal = trialBalanceRows.reduce((sum, row) => sum + row.debitBalance, 0);
+    const trialCreditTotal = trialBalanceRows.reduce((sum, row) => sum + row.creditBalance, 0);
 
     const handleGeneratePDF = async () => {
         setGenerating(true);
@@ -73,9 +71,9 @@ export default function LedgerScreen() {
                 debtors,
                 creditors,
                 PERIOD_LABELS[reportPeriod],
-                { totalDr, totalCr, openingBalance, trialBalance },
+                summary,
             );
-        } catch (e) {
+        } catch {
             Alert.alert(
                 "PDF Error",
                 "Could not generate the report. Please try again.",
@@ -83,11 +81,6 @@ export default function LedgerScreen() {
         } finally {
             setGenerating(false);
         }
-    };
-
-    const getRowType = (type: string) => {
-        const isDr = ["expense", "purchase", "takeaway", "consumed"].includes(type);
-        return isDr ? "dr" : "cr";
     };
 
     const ListHeader = () => (
@@ -119,54 +112,82 @@ export default function LedgerScreen() {
                 </View>
             </ScrollView>
 
-            {/* Trial Balance Summary */}
+            {/* Cashbook Summary */}
             <View className="flex-row gap-2 px-4 py-2">
                 <View className="flex-1 bg-muted rounded-xl p-3 border border-border">
                     <Text className="text-[9px] text-muted-foreground uppercase tracking-widest">
-                        Total Credits (Cr)
+                        Cash In (Dr)
                     </Text>
                     <Text className="text-[15px] font-bold text-primary mt-0.5">
-                        KES {totalCr.toLocaleString()}
+                        KES {summary.totalDebits.toLocaleString()}
                     </Text>
                 </View>
                 <View className="flex-1 bg-muted rounded-xl p-3 border border-border">
                     <Text className="text-[9px] text-muted-foreground uppercase tracking-widest">
-                        Total Debits (Dr)
+                        Cash Out (Cr)
                     </Text>
                     <Text className="text-[15px] font-bold text-destructive mt-0.5">
-                        KES {totalDr.toLocaleString()}
+                        KES {summary.totalCredits.toLocaleString()}
                     </Text>
                 </View>
             </View>
             <View className="mx-4 mb-2 bg-primary/10 border border-primary/20 rounded-xl p-3">
                 <View className="flex-row justify-between items-center">
                     <Text className="text-[10px] text-muted-foreground uppercase tracking-widest">
-                        Trial Balance (Cr − Dr)
+                        Closing Cash Balance
                     </Text>
                     <Text
-                        className={`text-[16px] font-bold ${trialBalance >= 0 ? "text-primary" : "text-destructive"
+                        className={`text-[16px] font-bold ${summary.closingBalance >= 0 ? "text-primary" : "text-destructive"
                             }`}
                     >
-                        KES {trialBalance.toLocaleString()}
+                        KES {summary.closingBalance.toLocaleString()}
                     </Text>
                 </View>
                 <Text className="text-[9px] text-muted-foreground mt-1">
-                    {trialBalance >= 0
-                        ? "✓ Ledger is in credit balance"
-                        : "⚠ Ledger shows a debit deficit"}
+                    Trial Balance Dr KES {trialDebitTotal.toLocaleString()} · Cr KES {trialCreditTotal.toLocaleString()}
                 </Text>
+            </View>
+
+            <View className="mx-4 mb-3 bg-card border border-border rounded-xl p-3">
+                <Text className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
+                    Unadjusted Trial Balance
+                </Text>
+                {trialBalanceRows.slice(0, 8).map((row) => (
+                    <View key={row.account} className="flex-row items-center py-1 border-b border-border-light">
+                        <View className="flex-1 pr-2">
+                            <Text className="text-[11px] font-semibold text-foreground" numberOfLines={1}>
+                                {row.account}
+                            </Text>
+                            <Text className="text-[9px] text-muted-foreground">{row.type}</Text>
+                        </View>
+                        <Text className="w-20 text-right text-[11px] text-destructive">
+                            {row.debitBalance ? `KES ${row.debitBalance.toLocaleString()}` : ""}
+                        </Text>
+                        <Text className="w-20 text-right text-[11px] text-primary">
+                            {row.creditBalance ? `KES ${row.creditBalance.toLocaleString()}` : ""}
+                        </Text>
+                    </View>
+                ))}
+                {trialBalanceRows.length > 8 ? (
+                    <Text className="text-[9px] text-muted-foreground mt-2">
+                        Full account list is included in the PDF export.
+                    </Text>
+                ) : null}
             </View>
 
             {/* Table Header */}
             <View className="flex-row border-b border-primary/20 pb-2 mb-1 px-4">
                 <Text className="flex-[2] text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
-                    Entry
+                    Date / Ref / Entry
                 </Text>
                 <Text className="w-20 text-right text-[9px] font-bold text-destructive uppercase tracking-widest">
-                    Dr
+                    Debit
                 </Text>
                 <Text className="w-20 text-right text-[9px] font-bold text-primary uppercase tracking-widest">
-                    Cr
+                    Credit
+                </Text>
+                <Text className="w-24 text-right text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
+                    Balance
                 </Text>
             </View>
         </>
@@ -177,8 +198,8 @@ export default function LedgerScreen() {
             <ScreenHeader title="Ledger & Trial Balance" subtitle={businessName} />
             <View className="flex-1 w-full bg-background">
                 <FlatList
-                    data={filtered}
-                    keyExtractor={(item, idx) => `${item.id}-${idx}`}
+                    data={ledgerEntries}
+                    keyExtractor={(item, idx) => `${item.transactionId}-${idx}`}
                     ListHeaderComponent={<ListHeader />}
                     showsVerticalScrollIndicator={false}
                     ListEmptyComponent={
@@ -193,11 +214,12 @@ export default function LedgerScreen() {
                             </Text>
                         </View>
                     }
-                    renderItem={({ item: tx }) => {
-                        const isDr = getRowType(tx.type) === "dr";
-                        const dateStr = new Date(tx.date).toLocaleDateString("en-KE", {
+                    renderItem={({ item: line }) => {
+                        const dateStr = new Date(line.timestamp).toLocaleDateString("en-KE", {
                             day: "numeric",
                             month: "short",
+                        });
+                        const timeStr = new Date(line.timestamp).toLocaleTimeString("en-KE", {
                             hour: "2-digit",
                             minute: "2-digit",
                         });
@@ -208,24 +230,27 @@ export default function LedgerScreen() {
                                         className="text-[12px] font-semibold text-foreground"
                                         numberOfLines={1}
                                     >
-                                        {tx.title}
+                                        {line.description}
                                     </Text>
                                     <Text
                                         className="text-[10px] text-muted-foreground mt-[1px]"
                                         numberOfLines={1}
                                     >
-                                        {tx.description}
+                                        {line.reference} · {line.paymentMethod.toUpperCase()} · {line.account}
                                     </Text>
                                     <Text className="text-[9px] text-muted-foreground mt-[1px]">
-                                        {dateStr}
-                                        {tx.operant ? ` · ${tx.operant}` : ""}
+                                        {dateStr} {timeStr}
+                                        {line.createdBy ? ` · ${line.createdBy}` : ""}
                                     </Text>
                                 </View>
                                 <Text className="w-20 text-right text-[12px] font-bold text-destructive">
-                                    {isDr ? `KES ${tx.amount.toLocaleString()}` : ""}
+                                    {line.debit > 0 ? `KES ${line.debit.toLocaleString()}` : ""}
                                 </Text>
                                 <Text className="w-20 text-right text-[12px] font-bold text-primary">
-                                    {!isDr ? `KES ${tx.amount.toLocaleString()}` : ""}
+                                    {line.credit > 0 ? `KES ${line.credit.toLocaleString()}` : ""}
+                                </Text>
+                                <Text className="w-24 text-right text-[12px] font-bold text-foreground">
+                                    KES {line.runningBalance.toLocaleString()}
                                 </Text>
                             </View>
                         );

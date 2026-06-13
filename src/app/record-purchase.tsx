@@ -19,6 +19,17 @@ export default function RecordPurchaseScreen() {
     const [paidAmount, setPaidAmount] = useState('0');
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mpesa'>('cash');
 
+    // Calculate creditor balance in real-time
+    const expectedNum = parseFloat(expectedAmount) || 0;
+    const paidNum = parseFloat(paidAmount) || 0;
+    const unpaidAmount = Math.max(0, expectedNum - paidNum);
+    const overpaymentAmount = Math.max(0, paidNum - expectedNum);
+    
+    // Get current creditor balance for selected supplier
+    const currentCreditor = creditors.find(c => c.name === supplier);
+    const currentCreditorBalance = currentCreditor ? (currentCreditor.totalOwed - currentCreditor.totalPaid) : 0;
+    const newCreditorBalance = currentCreditorBalance + expectedNum - paidNum;
+
     const savedStaff = getSetting("staff_operants");
     const staffMembers = savedStaff
         ? savedStaff.split(",").map((s) => s.trim()).filter(Boolean)
@@ -34,6 +45,60 @@ export default function RecordPurchaseScreen() {
         ...creditors.map(c => c.name),
         ...transactions.filter(t => t.type === 'purchase' && t.referenceName).map(t => t.referenceName!)
     ]));
+
+    const recordValidatedPurchase = (expectedNum: number, paidNum: number) => {
+        const paymentDiff = paidNum - expectedNum;
+
+        try {
+            if (paymentDiff === 0) {
+                // Full payment - record purchase with actual payment method
+                recordPurchase(
+                    itemDescription.trim(),
+                    expectedNum,
+                    paymentMethod,
+                    supplier.trim(),
+                    operant.trim(),
+                    undefined,
+                );
+            } else {
+                // Partial payment or overpayment: post full invoice to supplier credit,
+                // then post actual cash/M-Pesa paid. Overpayment becomes supplier credit.
+                recordPurchase(
+                    itemDescription.trim(),
+                    expectedNum,
+                    "credit",
+                    supplier.trim(),
+                    operant.trim(),
+                    undefined,
+                );
+
+                if (paidNum > 0) {
+                    recordCreditorPayment(
+                        supplier.trim(),
+                        paidNum,
+                        paymentMethod,
+                        operant.trim(),
+                    );
+                }
+            }
+
+            Alert.alert(
+                "Purchase Recorded",
+                `KES ${expectedNum.toLocaleString()} expense logged for ${itemDescription.trim()}.\n${paymentDiff < 0
+                    ? `Unpaid KES ${Math.abs(paymentDiff).toLocaleString()} added to creditors.`
+                    : paymentDiff > 0
+                        ? `Overpayment KES ${paymentDiff.toLocaleString()} recorded as supplier credit.`
+                        : ""
+                }`,
+                [{ text: 'OK', onPress: () => router.back() }]
+            );
+        } catch (error) {
+            Alert.alert(
+                "Purchase Failed",
+                error instanceof Error ? error.message : "The purchase could not be recorded.",
+            );
+        }
+    };
 
     const handleSave = () => {
         if (!operant.trim()) {
@@ -65,58 +130,23 @@ export default function RecordPurchaseScreen() {
             return;
         }
 
-        const paymentDiff = paidNum - expectedNum;
-
-        // logic for overpayment and underpayment of purchases
-        if (paymentDiff === 0) {
-            recordPurchase(
-                itemDescription.trim(),
-                expectedNum,
-                paymentMethod,
-                supplier.trim(),
-                operant.trim(),
-                undefined,
+        if (paidNum > expectedNum) {
+            Alert.alert(
+                "Confirm Supplier Overpayment",
+                `You entered KES ${paidNum.toLocaleString()} paid against a KES ${expectedNum.toLocaleString()} purchase.\n\nThe extra KES ${(paidNum - expectedNum).toLocaleString()} will be recorded as supplier credit/advance. Confirm this is the correct amount paid.`,
+                [
+                    { text: "Review Amount", style: "cancel" },
+                    {
+                        text: "Record Overpayment",
+                        style: "destructive",
+                        onPress: () => recordValidatedPurchase(expectedNum, paidNum),
+                    },
+                ],
             );
-        }else if(paymentDiff > 0){
-            recordPurchase(
-                itemDescription.trim(),
-                paidNum,
-                paymentMethod,
-                supplier.trim(),
-                operant.trim(),
-                undefined,
-            );
-            recordCreditorPayment(
-                supplier.trim(),
-                paymentDiff,
-                paymentMethod,
-                operant.trim(),
-            )
-        }else if (paymentDiff < 0){
-            recordPurchase(
-                itemDescription.trim(),
-                paidNum,
-                paymentMethod,
-                supplier.trim(),
-                operant.trim(),
-                undefined,
-            );
-            
-            recordPurchase(
-                itemDescription.trim(),
-                paymentDiff,
-                "credit",
-                supplier.trim(),
-                operant.trim(),
-                undefined,
-            );
+            return;
         }
 
-        Alert.alert(
-            "✅ Purchase Recorded",
-            `KES ${expectedNum.toLocaleString()} expense logged for ${itemDescription.trim()}.\n${paymentDiff < 0 ? `Unpaid KES ${Math.abs(paymentDiff).toLocaleString()} added to Creditors.` : ""}`,
-            [{ text: 'OK', onPress: () => router.back() }]
-        );
+        recordValidatedPurchase(expectedNum, paidNum);
     };
 
     return (
@@ -189,9 +219,40 @@ export default function RecordPurchaseScreen() {
                         </View>
                     </View>
 
+                    {/* Real-time creditor balance display */}
+                    {supplier && expectedNum > 0 && (
+                        <View className="mb-6 bg-card border-[0.5px] border-border-light rounded-[12px] p-4">
+                            <Text className="text-[11px] font-bold text-muted-foreground tracking-[1px] mb-3 uppercase">Creditor Balance Preview</Text>
+                            <View className="flex-row justify-between items-center mb-2">
+                                <Text className="text-[12px] text-muted-foreground">Current Balance:</Text>
+                                <Text className="text-[14px] font-bold text-foreground">KES {currentCreditorBalance.toLocaleString()}</Text>
+                            </View>
+                            <View className="flex-row justify-between items-center mb-2">
+                                <Text className="text-[12px] text-muted-foreground">Unpaid Credit:</Text>
+                                <Text className={`text-[14px] font-bold ${unpaidAmount > 0 ? 'text-warning' : 'text-muted-foreground'}`}>
+                                    {unpaidAmount > 0 ? '+' : ''}KES {unpaidAmount.toLocaleString()}
+                                </Text>
+                            </View>
+                            {overpaymentAmount > 0 && (
+                                <View className="flex-row justify-between items-center mb-2">
+                                    <Text className="text-[12px] text-muted-foreground">Supplier Credit:</Text>
+                                    <Text className="text-[14px] font-bold text-primary">
+                                        -KES {overpaymentAmount.toLocaleString()}
+                                    </Text>
+                                </View>
+                            )}
+                            <View className="flex-row justify-between items-center pt-2 border-t border-border-light">
+                                <Text className="text-[12px] font-bold text-muted-foreground">New Balance:</Text>
+                                <Text className={`text-[16px] font-bold ${newCreditorBalance > 0 ? 'text-warning' : newCreditorBalance < 0 ? 'text-primary' : 'text-foreground'}`}>
+                                    KES {newCreditorBalance.toLocaleString()}
+                                </Text>
+                            </View>
+                        </View>
+                    )}
+
                     <InfoAlert message={
                         <Text>
-                            Any <Text className="font-bold text-foreground">deficit</Text> between the expected cost and amount paid will automatically create a <Text className="font-bold text-primary">creditor entry</Text> for the selected supplier.
+                            Any <Text className="font-bold text-foreground">deficit</Text> creates a creditor balance. Any confirmed <Text className="font-bold text-primary">overpayment</Text> creates supplier credit.
                         </Text>
                     } />
 

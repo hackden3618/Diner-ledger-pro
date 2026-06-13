@@ -1,5 +1,5 @@
 import React from 'react';
-import { renderHook, act } from '@testing-library/react-native';
+import { renderHook } from '@testing-library/react-native';
 import { AppProvider, useApp } from '../AppContext';
 
 // Mock expo-sqlite because it throws outside of Expo

@@ -46,8 +46,9 @@ export default function AppBottomSheet({
       onClose={onClose}
       snapPoints={snapPoints}
       enableDynamicSizing={enableDynamicSizing}
-      children={children}
-    />
+    >
+      {children}
+    </AppBottomSheetInner>
   );
 }
 

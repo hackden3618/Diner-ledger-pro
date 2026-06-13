@@ -92,7 +92,7 @@ export default function OnboardingScreen() {
                         {currentSlideIndex === slides.length - 1 && (
                             <View className="w-full mt-4 bg-card border-[0.5px] border-border rounded-[16px] p-6 shadow-sm">
                                 <Text className="text-[13px] font-bold text-foreground mb-4 uppercase tracking-[1px] text-center">
-                                    Let's set up your diner
+                                    {"Let's set up your diner"}
                                 </Text>
 
                                 <View className="mb-4">

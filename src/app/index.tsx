@@ -52,7 +52,7 @@ export default function Index() {
         setIsReady(true);
       }
     });
-  }, []);
+  }, [router]);
 
   if (!isReady) {
     return null; // Or a splash screen loader
