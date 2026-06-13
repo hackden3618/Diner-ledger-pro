@@ -12,6 +12,7 @@ import DebtorsScreen from '@/components/screens/DebtorsScreen';
 import SettingsScreen from '@/components/screens/SettingsScreen';
 
 import PaymentModal from '@/components/modals/PaymentModal';
+import LoadingScreen from '@/components/ui/LoadingScreen';
 
 // Import UI
 import FloatingTabBar from '@/components/ui/FloatingTabBar';
@@ -55,7 +56,7 @@ export default function Index() {
   }, [router]);
 
   if (!isReady) {
-    return null; // Or a splash screen loader
+    return <LoadingScreen />;
   }
 
   return (

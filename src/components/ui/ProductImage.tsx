@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
+import { resolveMenuItemImageSource } from "@/utils/menuItemImages";
 
 interface ProductImageProps {
   image?: string;
@@ -40,13 +41,7 @@ export default function ProductImage({
     return colors[index % colors.length];
   };
 
-  const isFileImage =
-    image &&
-    (image.startsWith("file://") ||
-      image.startsWith("content://") ||
-      image.startsWith("http://") ||
-      image.startsWith("https://") ||
-      image.startsWith("data:image/"));
+  const imageSource = resolveMenuItemImageSource(image, name);
   const color = getPlaceholderColor(name.charCodeAt(0));
 
   const content = (
@@ -56,13 +51,14 @@ export default function ProductImage({
         backgroundImage: `linear-gradient(135deg, ${color}15, ${color}05)`,
       }}
     >
-      {isFileImage ? (
+      {imageSource ? (
         <Image
-          source={{ uri: image }}
+          source={imageSource}
           style={{
             width: "100%",
             height: "100%",
           }}
+          resizeMode="cover"
         />
       ) : (
         <View

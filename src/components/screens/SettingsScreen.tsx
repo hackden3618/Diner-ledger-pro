@@ -464,7 +464,7 @@ export default function SettingsScreen() {
                                 <View key={meal.id} className="flex-row justify-between items-center py-2 border-b border-border-light">
                                     <View>
                                         <Text className="text-[12px] text-foreground">{meal.name}</Text>
-                                        <Text className="text-[10px] text-muted">KES {meal.price} • Stock: {meal.stock}</Text>
+                                        <Text className="text-[10px] text-info">KES {meal.price} • Stock: {meal.stock}</Text>
                                     </View>
                                     <View className={`w-2 h-2 rounded-full ${meal.isAvailable ? 'bg-primary' : 'bg-danger'}`} />
                                 </View>

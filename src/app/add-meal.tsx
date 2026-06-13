@@ -6,6 +6,7 @@ import { useApp } from '@/database/AppContext';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import ScreenHeader from '@/components/ui/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { SEEDED_MENU_IMAGES, isSeededMenuImageKey } from '@/utils/menuItemImages';
 
 export default function AddMealScreen() {
   const { addNewMeal, updateMeal, deleteMeal, meals } = useApp();
@@ -18,7 +19,7 @@ export default function AddMealScreen() {
   const [newMealPrice, setNewMealPrice] = useState(editingMeal ? String(editingMeal.price) : '');
   const [newMealStock, setNewMealStock] = useState(editingMeal ? String(editingMeal.stock) : '');
   const [newMealAlert, setNewMealAlert] = useState(editingMeal ? String(editingMeal.lowAlert) : '');
-  const [newMealEmoji, setNewMealEmoji] = useState(editingMeal?.image || '🫓');
+  const [newMealEmoji, setNewMealEmoji] = useState(editingMeal?.image || SEEDED_MENU_IMAGES.chapati.key);
   const [imageUri, setImageUri] = useState<string | null>(
     editingMeal?.image && (editingMeal.image.startsWith('file://') || editingMeal.image.startsWith('content://'))
       ? editingMeal.image
@@ -31,7 +32,7 @@ export default function AddMealScreen() {
       setNewMealPrice(String(editingMeal.price));
       setNewMealStock(String(editingMeal.stock));
       setNewMealAlert(String(editingMeal.lowAlert));
-      setNewMealEmoji(editingMeal.image || '🫓');
+      setNewMealEmoji(editingMeal.image || SEEDED_MENU_IMAGES.chapati.key);
       setImageUri(
         editingMeal.image && (editingMeal.image.startsWith('file://') || editingMeal.image.startsWith('content://'))
           ? editingMeal.image
@@ -69,7 +70,7 @@ export default function AddMealScreen() {
       return;
     }
 
-    const finalImage = imageUri || newMealEmoji || '🫓';
+    const finalImage = imageUri || newMealEmoji || SEEDED_MENU_IMAGES.chapati.key;
 
     if (editingMeal) {
       updateMeal(editingMeal.id, newMealName, price, stock, alertLvl, finalImage);
@@ -165,7 +166,19 @@ export default function AddMealScreen() {
             <Text className="text-[11px] font-bold text-muted-foreground tracking-[1px] mb-3 uppercase">Choose Icon or Photo</Text>
             <View className="flex-row items-center gap-4">
               <View className="flex-1 flex-row flex-wrap bg-card border border-border rounded-[16px] p-2 gap-2">
-                {['🫓', '☕', '🥘', '🌾', '🍳', '🍞', '🥤', '🍔'].map((emoji, i) => (
+                {Object.values(SEEDED_MENU_IMAGES).map((item) => (
+                  <TouchableOpacity
+                    key={item.key}
+                    className={`w-[45px] h-[45px] rounded-[12px] items-center justify-center overflow-hidden ${(!imageUri && newMealEmoji === item.key) || (!imageUri && newMealEmoji === item.legacyEmoji) ? 'bg-primary/20 border border-primary' : 'bg-input'}`}
+                    onPress={() => {
+                      setNewMealEmoji(item.key);
+                      setImageUri(null);
+                    }}
+                  >
+                    <Image source={item.source} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  </TouchableOpacity>
+                ))}
+                {['🥘', '🌾', '🍳', '🍞', '🥤', '🍔'].map((emoji, i) => (
                   <TouchableOpacity
                     key={i}
                     className={`w-[45px] h-[45px] rounded-[12px] items-center justify-center ${(!imageUri && newMealEmoji === emoji) ? 'bg-primary/20 border border-primary' : 'bg-input'}`}
@@ -187,6 +200,12 @@ export default function AddMealScreen() {
                 >
                   {imageUri ? (
                     <Image source={{ uri: imageUri }} style={{ width: '100%', height: '100%' }} />
+                  ) : isSeededMenuImageKey(newMealEmoji) ? (
+                    <Image
+                      source={Object.values(SEEDED_MENU_IMAGES).find((item) => item.key === newMealEmoji)?.source}
+                      style={{ width: '100%', height: '100%' }}
+                      resizeMode="cover"
+                    />
                   ) : (
                     <Ionicons name="camera-outline" size={24} color="var(--muted-dark)" />
                   )}

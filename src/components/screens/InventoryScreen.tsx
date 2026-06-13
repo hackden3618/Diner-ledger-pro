@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { resolveMenuItemImageSource } from "@/utils/menuItemImages";
 
 export default function InventoryScreen() {
   const { meals } = useApp();
@@ -78,13 +79,7 @@ export default function InventoryScreen() {
         renderItem={({ item: meal }) => {
           const isLow = meal.stock <= meal.lowAlert;
           const stockPct = meal.lowAlert > 0 ? Math.min(100, (meal.stock / meal.lowAlert) * 100) : 100;
-          const isFileImage =
-            meal.image &&
-            (meal.image.startsWith("file://") ||
-              meal.image.startsWith("content://") ||
-              meal.image.startsWith("http://") ||
-              meal.image.startsWith("https://") ||
-              meal.image.startsWith("data:image/"));
+          const imageSource = resolveMenuItemImageSource(meal.image, meal.name);
           const color = getPlaceholderColor(meal.name);
 
           return (
@@ -95,8 +90,8 @@ export default function InventoryScreen() {
             >
               {/* Image Banner */}
               <View className="w-full h-[180px] bg-muted relative items-center justify-center">
-                {isFileImage ? (
-                  <Image source={{ uri: meal.image }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                {imageSource ? (
+                  <Image source={imageSource} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                 ) : (
                   <View 
                     className="w-full h-full items-center justify-center opacity-80"
