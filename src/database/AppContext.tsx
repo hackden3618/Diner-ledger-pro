@@ -51,7 +51,7 @@ interface AppContextType {
     businessName: string;
     openingBalance: number,
     setOpenBalance: (openBalance: string) => void,
-    setOpeningBalanceWithLock: (amount: number, operant: string) => void,
+    setOpeningBalanceWithLock: (cashAmount: number, mpesaAmount: number, operant: string) => void,
     hasOpeningBalanceToday: () => boolean,
     meals: Meal[];
     transactions: Transaction[];
@@ -135,7 +135,8 @@ interface AppContextType {
 
     // Collections
     recordCollection: (
-        amount: number,
+        cashAmount: number,
+        mpesaAmount: number,
         collectorName: string,
         staffHandingOver: string,
     ) => void;
@@ -255,25 +256,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
                             const cashSales = todayTx
                                 .filter((t) => t.type === "sale" && t.paymentMethod === "cash")
                                 .reduce((s, t) => s + t.amount, 0);
+                            const mpesaSales = todayTx
+                                .filter((t) => t.type === "sale" && t.paymentMethod === "mpesa")
+                                .reduce((s, t) => s + t.amount, 0);
 
                             const debtorPayments = todayTx
                                 .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "cash")
+                                .reduce((s, t) => s + t.amount, 0);
+                            const mpesaDebtorPayments = todayTx
+                                .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "mpesa")
                                 .reduce((s, t) => s + t.amount, 0);
 
                             const purchasePayments = todayTx
                                 .filter((t) => t.type === "purchase" && t.paymentMethod === "cash")
                                 .reduce((s, t) => s + t.amount, 0);
+                            const mpesaPurchasePayments = todayTx
+                                .filter((t) => t.type === "purchase" && t.paymentMethod === "mpesa")
+                                .reduce((s, t) => s + t.amount, 0);
 
                             const expenses = todayTx
                                 .filter((t) => t.type === "expense" && t.paymentMethod === "cash")
+                                .reduce((s, t) => s + t.amount, 0);
+                            const mpesaExpenses = todayTx
+                                .filter((t) => t.type === "expense" && t.paymentMethod === "mpesa")
                                 .reduce((s, t) => s + t.amount, 0);
 
                             const creditorPayments = todayTx
                                 .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "cash")
                                 .reduce((s, t) => s + t.amount, 0);
+                            const mpesaCreditorPayments = todayTx
+                                .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "mpesa")
+                                .reduce((s, t) => s + t.amount, 0);
 
                             const collections = todayTx
-                                .filter((t) => t.type === "collection")
+                                .filter((t) => t.type === "collection" && t.paymentMethod === "cash")
+                                .reduce((s, t) => s + t.amount, 0);
+                            const mpesaCollections = todayTx
+                                .filter((t) => t.type === "collection" && t.paymentMethod === "mpesa")
                                 .reduce((s, t) => s + t.amount, 0);
 
                             const totalSales = todayTx
@@ -286,13 +305,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
                             // Opening balance should come from today's opening_balance transaction, not global setting
                             const openingBalanceToday = todayTx
-                                .filter((t) => t.type === "opening_balance")
+                                .filter((t) => t.type === "opening_balance" && t.paymentMethod === "cash")
+                                .reduce((s, t) => s + t.amount, 0);
+                            const mpesaOpeningBalanceToday = todayTx
+                                .filter((t) => t.type === "opening_balance" && t.paymentMethod === "mpesa")
                                 .reduce((s, t) => s + t.amount, 0);
 
                             const expectedCash = openingBalanceToday + cashSales + debtorPayments - purchasePayments - expenses - creditorPayments - collections;
-                            const netBalance = expectedCash;
+                            const expectedMpesa = mpesaOpeningBalanceToday + mpesaSales + mpesaDebtorPayments - mpesaPurchasePayments - mpesaExpenses - mpesaCreditorPayments - mpesaCollections;
+                            const netBalance = expectedCash + expectedMpesa;
 
-                            dbCloseDay(openingBalanceToday, totalSales, totalExpenses, netBalance, "System (Auto)", undefined);
+                            dbCloseDay(openingBalanceToday + mpesaOpeningBalanceToday, totalSales, totalExpenses, netBalance, "System (Auto)", undefined);
                             updateSetting("last_auto_close_date", todayStr);
                             refreshAll();
                         } else {
@@ -317,25 +340,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setBusinessName(name);
     };
 
-    const setOpeningBalanceWithLock = (amount: number, operant: string) => {
+    const setOpeningBalanceWithLock = (cashAmount: number, mpesaAmount: number, operant: string) => {
         // Accounting principle: Opening balance can only be entered once per business day
         // Once entered, it becomes locked
         if (hasOpeningBalanceToday()) {
             throw new Error("Opening balance has already been recorded for today. It is locked.");
         }
+        if (cashAmount < 0 || mpesaAmount < 0) {
+            throw new Error("Opening balances must be non-negative.");
+        }
+        if (cashAmount + mpesaAmount <= 0) {
+            throw new Error("Enter either a cash or M-Pesa opening balance.");
+        }
 
-        recordOpeningBalance(amount, operant);
-        setOpenBalance(amount.toString());
+        recordOpeningBalance(cashAmount, operant, "cash");
+        recordOpeningBalance(mpesaAmount, operant, "mpesa");
+        setOpenBalance((cashAmount + mpesaAmount).toString());
         refreshAll();
     };
 
     const recordCollection = (
-        amount: number,
+        cashAmount: number,
+        mpesaAmount: number,
         collectorName: string,
         staffHandingOver: string,
     ) => {
         try {
-            dbRecordCollection(amount, collectorName, staffHandingOver);
+            if (cashAmount < 0 || mpesaAmount < 0) {
+                throw new Error("Collection amounts must be non-negative.");
+            }
+            if (cashAmount + mpesaAmount <= 0) {
+                throw new Error("Enter either cash or M-Pesa collected.");
+            }
+            dbRecordCollection(cashAmount, collectorName, staffHandingOver, "cash");
+            dbRecordCollection(mpesaAmount, collectorName, staffHandingOver, "mpesa");
             refreshAll();
         } catch (error) {
             console.error("Error recording collection:", error);
@@ -951,25 +989,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const cashSales = todayTx
                 .filter((t) => t.type === "sale" && t.paymentMethod === "cash")
                 .reduce((s, t) => s + t.amount, 0);
+            const mpesaSales = todayTx
+                .filter((t) => t.type === "sale" && t.paymentMethod === "mpesa")
+                .reduce((s, t) => s + t.amount, 0);
 
             const debtorPayments = todayTx
                 .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "cash")
+                .reduce((s, t) => s + t.amount, 0);
+            const mpesaDebtorPayments = todayTx
+                .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "mpesa")
                 .reduce((s, t) => s + t.amount, 0);
 
             const purchasePayments = todayTx
                 .filter((t) => t.type === "purchase" && t.paymentMethod === "cash")
                 .reduce((s, t) => s + t.amount, 0);
+            const mpesaPurchasePayments = todayTx
+                .filter((t) => t.type === "purchase" && t.paymentMethod === "mpesa")
+                .reduce((s, t) => s + t.amount, 0);
 
             const expenses = todayTx
                 .filter((t) => t.type === "expense" && t.paymentMethod === "cash")
+                .reduce((s, t) => s + t.amount, 0);
+            const mpesaExpenses = todayTx
+                .filter((t) => t.type === "expense" && t.paymentMethod === "mpesa")
                 .reduce((s, t) => s + t.amount, 0);
 
             const creditorPayments = todayTx
                 .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "cash")
                 .reduce((s, t) => s + t.amount, 0);
+            const mpesaCreditorPayments = todayTx
+                .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "mpesa")
+                .reduce((s, t) => s + t.amount, 0);
 
             const collections = todayTx
-                .filter((t) => t.type === "collection")
+                .filter((t) => t.type === "collection" && t.paymentMethod === "cash")
+                .reduce((s, t) => s + t.amount, 0);
+            const mpesaCollections = todayTx
+                .filter((t) => t.type === "collection" && t.paymentMethod === "mpesa")
                 .reduce((s, t) => s + t.amount, 0);
 
             const totalSales = todayTx
@@ -982,13 +1038,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
             // Opening balance should come from today's opening_balance transaction, not global setting
             const openingBalanceToday = todayTx
-                .filter((t) => t.type === "opening_balance")
+                .filter((t) => t.type === "opening_balance" && t.paymentMethod === "cash")
+                .reduce((s, t) => s + t.amount, 0);
+            const mpesaOpeningBalanceToday = todayTx
+                .filter((t) => t.type === "opening_balance" && t.paymentMethod === "mpesa")
                 .reduce((s, t) => s + t.amount, 0);
 
             const expectedCash = openingBalanceToday + cashSales + debtorPayments - purchasePayments - expenses - creditorPayments - collections;
-            const netBalance = expectedCash;
+            const expectedMpesa = mpesaOpeningBalanceToday + mpesaSales + mpesaDebtorPayments - mpesaPurchasePayments - mpesaExpenses - mpesaCreditorPayments - mpesaCollections;
+            const netBalance = expectedCash + expectedMpesa;
 
-            dbCloseDay(openingBalanceToday, totalSales, totalExpenses, netBalance, operant, collector);
+            dbCloseDay(openingBalanceToday + mpesaOpeningBalanceToday, totalSales, totalExpenses, netBalance, operant, collector);
             refreshAll();
         } catch (error) {
             console.error("Error closing day:", error);

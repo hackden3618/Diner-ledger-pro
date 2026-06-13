@@ -63,6 +63,7 @@ const accountTypes: Record<string, AccountType> = {
   "Inventory / Purchases": "Asset",
   Inventory: "Asset",
   "Cash Collections Control": "Asset",
+  "M-Pesa Collections Control": "Asset",
   "Accounts Payable": "Liability",
   "Suspense / Control Account": "Liability",
   "Owner Capital / Opening Equity": "Equity",
@@ -194,7 +195,7 @@ export function buildJournalEntries(transactions: Transaction[]): JournalLine[] 
 
     switch (transaction.type) {
       case "opening_balance":
-        pushJournalPair(lines, transaction, "Cash on Hand", "Owner Capital / Opening Equity");
+        pushJournalPair(lines, transaction, cashAccount, "Owner Capital / Opening Equity");
         break;
       case "sale":
         pushJournalPair(
@@ -224,7 +225,12 @@ export function buildJournalEntries(transactions: Transaction[]): JournalLine[] 
         pushJournalPair(lines, transaction, "Operating Expenses", cashAccount);
         break;
       case "collection":
-        pushJournalPair(lines, transaction, "Cash Collections Control", "Cash on Hand");
+        pushJournalPair(
+          lines,
+          transaction,
+          transaction.paymentMethod === "mpesa" ? "M-Pesa Collections Control" : "Cash Collections Control",
+          cashAccount,
+        );
         break;
       case "consumed":
         pushJournalPair(lines, transaction, "Staff Meals / Internal Consumption", "Inventory");
@@ -382,7 +388,7 @@ export function summarizeAccounting(
   const cashIn = ledger.reduce((sum, line) => sum + line.debit, 0);
   const cashOut = ledger.reduce((sum, line) => sum + line.credit, 0);
   const openingBalance = transactions
-    .filter((transaction) => transaction.type === "opening_balance" && transaction.paymentMethod === "cash")
+    .filter((transaction) => transaction.type === "opening_balance")
     .reduce((sum, transaction) => sum + transaction.amount, 0);
 
   return {

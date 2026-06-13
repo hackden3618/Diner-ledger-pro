@@ -284,6 +284,7 @@ export async function generateLedgerPDF(
               <th>Date</th>
               <th>Collector</th>
               <th>Staff Handing Over</th>
+              <th>Method</th>
               <th style="text-align:right">Amount</th>
             </tr>
           </thead>
@@ -293,6 +294,7 @@ export async function generateLedgerPDF(
                 <td>${new Date(t.date).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
                 <td>${t.referenceName || '—'}</td>
                 <td>${t.operant || '—'}</td>
+                <td style="text-transform:capitalize">${t.paymentMethod}</td>
                 <td style="text-align:right; font-weight:600">KES ${t.amount.toLocaleString()}</td>
               </tr>
             `).join('')}

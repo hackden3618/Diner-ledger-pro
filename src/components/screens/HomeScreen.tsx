@@ -24,36 +24,38 @@ export default function HomeScreen() {
     const cashInToday = todayTx
         .filter(
             (t) =>
-                t.type === "sale" && t.paymentMethod === "cash" ||
-                t.type === "debtor_payment" && t.paymentMethod === "cash" ||
-                t.type === "opening_balance" && t.paymentMethod === "cash"
+                (t.type === "sale" && t.paymentMethod === "cash") ||
+                (t.type === "debtor_payment" && t.paymentMethod === "cash") ||
+                (t.type === "opening_balance" && t.paymentMethod === "cash")
         )
         .reduce((sum, t) => sum + t.amount, 0);
 
     const cashOutToday = todayTx
         .filter(
             (t) =>
-                t.type === "purchase" && t.paymentMethod === "cash" ||
-                t.type === "expense" && t.paymentMethod === "cash" ||
-                t.type === "creditor_payment" && t.paymentMethod === "cash" ||
-                t.type === "collection"
+                (t.type === "purchase" && t.paymentMethod === "cash") ||
+                (t.type === "expense" && t.paymentMethod === "cash") ||
+                (t.type === "creditor_payment" && t.paymentMethod === "cash") ||
+                (t.type === "collection" && t.paymentMethod === "cash")
         )
         .reduce((sum, t) => sum + t.amount, 0);
 
     const mpesaInToday = todayTx
         .filter(
             (t) =>
-                t.type === "sale" && t.paymentMethod === "mpesa" ||
-                t.type === "debtor_payment" && t.paymentMethod === "mpesa"
+                (t.type === "sale" && t.paymentMethod === "mpesa") ||
+                (t.type === "debtor_payment" && t.paymentMethod === "mpesa") ||
+                (t.type === "opening_balance" && t.paymentMethod === "mpesa")
         )
         .reduce((sum, t) => sum + t.amount, 0);
 
     const mpesaOutToday = todayTx
         .filter(
             (t) =>
-                t.type === "purchase" && t.paymentMethod === "mpesa" ||
-                t.type === "expense" && t.paymentMethod === "mpesa" ||
-                t.type === "creditor_payment" && t.paymentMethod === "mpesa"
+                (t.type === "purchase" && t.paymentMethod === "mpesa") ||
+                (t.type === "expense" && t.paymentMethod === "mpesa") ||
+                (t.type === "creditor_payment" && t.paymentMethod === "mpesa") ||
+                (t.type === "collection" && t.paymentMethod === "mpesa")
         )
         .reduce((sum, t) => sum + t.amount, 0);
 

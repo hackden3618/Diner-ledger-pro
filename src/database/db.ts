@@ -469,17 +469,20 @@ export function recordCollection(
     amount: number,
     collectorName: string,
     staffHandingOver: string,
+    paymentMethod: "cash" | "mpesa" = "cash",
 ) {
+    if (amount <= 0) return;
     const date = new Date().toISOString();
+    const methodLabel = paymentMethod === "mpesa" ? "M-Pesa" : "Cash";
     db.runSync(
         `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, referenceName, operant, createdBy, createdAt, updatedBy, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             "collection",
-            "Cash Collection",
-            `Cash handed to collector ${collectorName}`,
+            `${methodLabel} Collection`,
+            `${methodLabel} handed to collector ${collectorName}`,
             amount,
-            "cash",
+            paymentMethod,
             date,
             collectorName,
             staffHandingOver,
@@ -491,8 +494,8 @@ export function recordCollection(
     );
     
     addNotification(
-        "Cash Collected",
-        `KES ${amount.toLocaleString()} handed to collector ${collectorName} by ${staffHandingOver}.`,
+        `${methodLabel} Collected`,
+        `KES ${amount.toLocaleString()} ${methodLabel} handed to collector ${collectorName} by ${staffHandingOver}.`,
         "payment",
     );
 }
@@ -510,17 +513,20 @@ export function hasOpeningBalanceToday(): boolean {
 export function recordOpeningBalance(
     amount: number,
     operant: string,
+    paymentMethod: "cash" | "mpesa" = "cash",
 ) {
+    if (amount <= 0) return;
     const date = new Date().toISOString();
+    const methodLabel = paymentMethod === "mpesa" ? "M-Pesa" : "Cash";
     db.runSync(
         `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, referenceName, operant, createdBy, createdAt, updatedBy, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             "opening_balance",
-            "Opening Balance",
-            "Daily opening balance entry",
+            `${methodLabel} Opening Balance`,
+            `Daily ${methodLabel} opening balance entry`,
             amount,
-            "cash",
+            paymentMethod,
             date,
             null,
             operant,
@@ -532,11 +538,13 @@ export function recordOpeningBalance(
     );
     
     // Also update the setting for backward compatibility
-    updateSetting("opening_balance", amount.toString());
+    if (paymentMethod === "cash") {
+        updateSetting("opening_balance", amount.toString());
+    }
     
     addNotification(
-        "Opening Balance Recorded",
-        `KES ${amount.toLocaleString()} opening balance recorded by ${operant}.`,
+        `${methodLabel} Opening Balance Recorded`,
+        `KES ${amount.toLocaleString()} ${methodLabel} opening balance recorded by ${operant}.`,
         "general",
     );
 }
