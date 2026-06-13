@@ -55,17 +55,18 @@ export default function TransactionsScreen() {
             return matchSearch;
           })
           .map((tx, idx) => {
-            const isExpense = tx.type === 'expense' || tx.type === 'purchase';
-            const txColor = tx.type === 'sale' ? "#2ecc71" : tx.type === 'takeaway' || tx.type === 'consumed' ? "#f39c12" : "#e74c3c";
-            const amtSign = isExpense ? '-' : '+';
+            const isOutflow = ['expense', 'purchase', 'creditor_payment', 'collection', 'refund'].includes(tx.type);
+            const isFlow = ['takeaway', 'consumed', 'adjustment', 'day_close', 'takeout_reconciliation'].includes(tx.type);
+            const txColor = isFlow ? "#f39c12" : isOutflow ? "#e74c3c" : "#2ecc71";
+            const amtSign = isOutflow ? '-' : '+';
             const date = new Date(tx.date).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' });
 
             return (
               <View key={idx} className="flex-row items-center py-2.5 border-b-[0.5px] border-border gap-[10px]">
                 <View 
-                  className={`w-8 h-8 rounded-2xl items-center justify-center ${isExpense ? 'bg-destructive/10' : 'bg-primary/10'}`}
+                  className={`w-8 h-8 rounded-2xl items-center justify-center ${isOutflow ? 'bg-destructive/10' : isFlow ? 'bg-warning/10' : 'bg-primary/10'}`}
                 >
-                  <Ionicons name={isExpense ? "trending-down" : "trending-up"} size={16} color={isExpense ? "#e74c3c" : "#2ecc71"} />
+                  <Ionicons name={isOutflow ? "trending-down" : isFlow ? "swap-horizontal" : "trending-up"} size={16} color={txColor} />
                 </View>
                 <View className="flex-1">
                   <View className="flex-row items-center">
@@ -75,7 +76,7 @@ export default function TransactionsScreen() {
                   <Text className="text-[10px] text-muted-foreground mt-[1px]">{tx.description}</Text>
                 </View>
                 <Text style={{ color: txColor }} className="text-[12px] font-bold">
-                  {tx.type === 'takeaway' || tx.type === 'consumed' ? 'Flow' : `${amtSign}KES ${tx.amount.toLocaleString()}`}
+                  {isFlow ? 'Flow' : `${amtSign}KES ${tx.amount.toLocaleString()}`}
                 </Text>
               </View>
             );

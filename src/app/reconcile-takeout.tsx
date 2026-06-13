@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert, ScrollView } from 'react-native';
+import React, { useEffect, useMemo, useState } from "react";
+import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Alert, ScrollView } from 'react-native';
 import { useApp } from "@/database/AppContext";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import ScreenHeader from "@/components/ui/ScreenHeader";
@@ -25,6 +25,8 @@ export default function ReconcileTakeoutScreen() {
     }[]
   >([]);
   const [bulkCash, setBulkCash] = useState("");
+  const [cashAmount, setCashAmount] = useState("");
+  const [mpesaAmount, setMpesaAmount] = useState("");
   const [unifiedDebtors, setUnifiedDebtors] = useState<{ name: string; amount: number }[]>([]);
 
   useEffect(() => {
@@ -50,9 +52,11 @@ export default function ReconcileTakeoutScreen() {
           0
         );
         setBulkCash(totalInitialCash.toString());
+        setCashAmount(totalInitialCash.toString());
+        setMpesaAmount("0");
       }
     }
-  }, [id]);
+  }, [id, takeoutSessions]);
 
   const handleUpdateItem = (mealId: number, field: "unsold" | "cashSold" | "creditSold", value: string) => {
     const numValue = parseInt(value) || 0;
@@ -82,16 +86,19 @@ export default function ReconcileTakeoutScreen() {
     );
   };
 
-  const recalculateCash = () => {
-    const expected = items.reduce((sum, item) => sum + item.cashSold * item.price, 0);
-    setBulkCash(expected.toString());
-  };
+  const expectedCashFromItems = useMemo(
+    () => items.reduce((sum, item) => sum + item.cashSold * item.price, 0),
+    [items],
+  );
 
   useEffect(() => {
     if (items.length > 0) {
-      recalculateCash();
+      setBulkCash(expectedCashFromItems.toString());
+      // Auto-split: default to all cash, user can adjust
+      setCashAmount(expectedCashFromItems.toString());
+      setMpesaAmount("0");
     }
-  }, [items.map((i) => i.cashSold).join(",")]);
+  }, [expectedCashFromItems, items.length]);
 
   const addUnifiedDebtor = () => {
     setUnifiedDebtors((prev) => [...prev, { name: "", amount: 0 }]);
@@ -144,21 +151,40 @@ export default function ReconcileTakeoutScreen() {
     }
 
     const totalCashNum = parseFloat(bulkCash) || 0;
+    const cashNum = parseFloat(cashAmount) || 0;
+    const mpesaNum = parseFloat(mpesaAmount) || 0;
 
-    reconcileTakeout(session.id, session.staffName, {
-      items: items.map((i) => ({
-        mealId: i.mealId,
-        unsold: i.unsold,
-        cashSold: i.cashSold,
-        creditSold: i.creditSold,
-      })),
-      totalCash: totalCashNum,
-      globalDebtors: unifiedDebtors.filter((d) => d.name.trim() !== "" && d.amount > 0),
-    });
+    // Validate that cash + mpesa equals expected total
+    if (Math.abs((cashNum + mpesaNum) - totalCashNum) > 0.01) {
+      Alert.alert(
+        "Amount Mismatch",
+        `The sum of Cash (KES ${cashNum}) and M-Pesa (KES ${mpesaNum}) must equal the expected total (KES ${totalCashNum}).`
+      );
+      return;
+    }
 
-    Alert.alert("Success", "Reconciliation completed successfully.", [
-      { text: "OK", onPress: () => router.back() }
-    ]);
+    try {
+      reconcileTakeout(session.id, session.staffName, {
+        items: items.map((i) => ({
+          mealId: i.mealId,
+          unsold: i.unsold,
+          cashSold: i.cashSold,
+          creditSold: i.creditSold,
+        })),
+        totalCash: cashNum,
+        totalMpesa: mpesaNum,
+        globalDebtors: unifiedDebtors.filter((d) => d.name.trim() !== "" && d.amount > 0),
+      });
+
+      Alert.alert("Success", "Reconciliation completed successfully.", [
+        { text: "OK", onPress: () => router.back() }
+      ]);
+    } catch (error) {
+      Alert.alert(
+        "Reconciliation Failed",
+        error instanceof Error ? error.message : "The takeout session could not be reconciled.",
+      );
+    }
   };
 
   if (!session) {
@@ -275,20 +301,44 @@ export default function ReconcileTakeoutScreen() {
           )}
 
           <View className="mb-6">
-            <Text className="text-[11px] font-bold text-muted-foreground tracking-[1px] mb-3 uppercase">Total Cash Brought In</Text>
-            <View className="flex-row items-center bg-card border border-primary rounded-[16px] px-4 py-2 h-[60px] shadow-sm">
-              <Text className="text-[16px] font-bold text-primary mr-3">KES</Text>
-              <TextInput
-                className="flex-1 text-[24px] font-bold text-foreground h-full"
-                keyboardType="numeric"
-                value={bulkCash}
-                editable={false}
-                onChangeText={setBulkCash}
-              />
-            </View>
-            <Text className="text-[11px] font-medium text-muted-foreground mt-2 px-1">
-              Verify the actual cash handed over matches this expected amount.
+            <Text className="text-[11px] font-bold text-muted-foreground tracking-[1px] mb-3 uppercase">Total Expected: KES {bulkCash}</Text>
+            <Text className="text-[11px] font-medium text-muted-foreground mb-3 px-1">
+              Split the total between Cash and M-Pesa (must sum to expected amount)
             </Text>
+            
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <Text className="text-[10px] font-bold text-primary mb-1.5 uppercase tracking-[0.5px]">Cash</Text>
+                <View className="flex-row items-center bg-card border border-primary/30 rounded-[16px] px-4 py-2 h-[60px] shadow-sm">
+                  <Text className="text-[16px] font-bold text-primary mr-2">KES</Text>
+                  <TextInput
+                    className="flex-1 text-[20px] font-bold text-foreground h-full"
+                    keyboardType="numeric"
+                    value={cashAmount}
+                    onChangeText={setCashAmount}
+                  />
+                </View>
+              </View>
+              <View className="flex-1">
+                <Text className="text-[10px] font-bold text-info mb-1.5 uppercase tracking-[0.5px]">M-Pesa</Text>
+                <View className="flex-row items-center bg-card border border-info/30 rounded-[16px] px-4 py-2 h-[60px] shadow-sm">
+                  <Text className="text-[16px] font-bold text-info mr-2">KES</Text>
+                  <TextInput
+                    className="flex-1 text-[20px] font-bold text-foreground h-full"
+                    keyboardType="numeric"
+                    value={mpesaAmount}
+                    onChangeText={setMpesaAmount}
+                  />
+                </View>
+              </View>
+            </View>
+            
+            <View className="mt-2 px-1">
+              <Text className={`text-[11px] font-medium ${Math.abs((parseFloat(cashAmount) || 0) + (parseFloat(mpesaAmount) || 0) - (parseFloat(bulkCash) || 0)) < 0.01 ? 'text-primary' : 'text-destructive'}`}>
+                Total: KES {((parseFloat(cashAmount) || 0) + (parseFloat(mpesaAmount) || 0)).toLocaleString()}
+                {Math.abs((parseFloat(cashAmount) || 0) + (parseFloat(mpesaAmount) || 0) - (parseFloat(bulkCash) || 0)) >= 0.01 && ` (Expected: KES ${bulkCash})`}
+              </Text>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

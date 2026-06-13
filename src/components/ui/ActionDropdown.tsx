@@ -161,7 +161,7 @@ export default function ActionDropdown({
                 >
                   <Ionicons name="add-circle" size={22} color="#2ecc71" />
                   <Text className="text-[15px] font-bold text-primary ml-3">
-                    Add "{searchQuery.trim()}"
+                    {`Add "${searchQuery.trim()}"`}
                   </Text>
                 </TouchableOpacity>
               ) : null

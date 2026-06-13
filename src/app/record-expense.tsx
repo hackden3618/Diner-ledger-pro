@@ -40,13 +40,20 @@ export default function RecordExpenseScreen() {
             return;
         }
 
-        recordExpense(expenseTitle.trim(), amountNum, paymentMethod, operant.trim());
+        try {
+            recordExpense(expenseTitle.trim(), amountNum, paymentMethod, operant.trim());
 
-        Alert.alert(
-            "✅ Expense Recorded",
-            `KES ${amountNum.toLocaleString()} logged for ${expenseTitle.trim()}.`,
-            [{ text: 'OK', onPress: () => router.back() }]
-        );
+            Alert.alert(
+                "✅ Expense Recorded",
+                `KES ${amountNum.toLocaleString()} logged for ${expenseTitle.trim()}.`,
+                [{ text: 'OK', onPress: () => router.back() }]
+            );
+        } catch (error) {
+            Alert.alert(
+                "Expense Failed",
+                error instanceof Error ? error.message : "The expense could not be recorded.",
+            );
+        }
     };
 
     return (

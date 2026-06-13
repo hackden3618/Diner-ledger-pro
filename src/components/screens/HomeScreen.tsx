@@ -10,7 +10,7 @@ import {
 import { useRouter } from "expo-router";
 
 export default function HomeScreen() {
-    const { transactions, openingBalance, takeoutSessions, debtors, creditors } = useApp();
+    const { transactions, takeoutSessions, debtors, creditors } = useApp();
     const router = useRouter();
 
     // Compute stats for current day
@@ -21,16 +21,46 @@ export default function HomeScreen() {
         return txDate === now;
     });
 
-    const cashToday = todayTx
-        .filter((t) => t.type === "sale" && t.paymentMethod === "cash")
+    const cashInToday = todayTx
+        .filter(
+            (t) =>
+                (t.type === "sale" && t.paymentMethod === "cash") ||
+                (t.type === "debtor_payment" && t.paymentMethod === "cash") ||
+                (t.type === "opening_balance" && t.paymentMethod === "cash")
+        )
         .reduce((sum, t) => sum + t.amount, 0);
 
-    const mpesaToday = todayTx
-        .filter((t) => t.type === "sale" && t.paymentMethod === "mpesa")
+    const cashOutToday = todayTx
+        .filter(
+            (t) =>
+                (t.type === "purchase" && t.paymentMethod === "cash") ||
+                (t.type === "expense" && t.paymentMethod === "cash") ||
+                (t.type === "creditor_payment" && t.paymentMethod === "cash") ||
+                (t.type === "collection" && t.paymentMethod === "cash")
+        )
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const mpesaInToday = todayTx
+        .filter(
+            (t) =>
+                (t.type === "sale" && t.paymentMethod === "mpesa") ||
+                (t.type === "debtor_payment" && t.paymentMethod === "mpesa") ||
+                (t.type === "opening_balance" && t.paymentMethod === "mpesa")
+        )
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const mpesaOutToday = todayTx
+        .filter(
+            (t) =>
+                (t.type === "purchase" && t.paymentMethod === "mpesa") ||
+                (t.type === "expense" && t.paymentMethod === "mpesa") ||
+                (t.type === "creditor_payment" && t.paymentMethod === "mpesa") ||
+                (t.type === "collection" && t.paymentMethod === "mpesa")
+        )
         .reduce((sum, t) => sum + t.amount, 0);
 
     const expensesToday = todayTx
-        .filter((t) => t.type === "expense")
+        .filter((t) => t.type === "expense" && (t.paymentMethod === "cash" || t.paymentMethod === "mpesa"))
         .reduce((sum, t) => sum + t.amount, 0);
 
     const purchasesToday = todayTx
@@ -44,14 +74,22 @@ export default function HomeScreen() {
     const grossProfitToday = totalSalesToday - purchasesToday;
     const netProfitToday = grossProfitToday - expensesToday;
 
-    const moneyInHouse = (openingBalance + cashToday + mpesaToday) - (expensesToday + purchasesToday);
+
+    const cashAvailableToday = cashInToday - cashOutToday
+    const mpesaAvailableToday = mpesaInToday - mpesaOutToday
+
+
+    const moneyInToday = cashInToday + mpesaInToday;
+    const moneyOutToday = cashOutToday + mpesaOutToday;
+
+    const moneyInHouse = moneyInToday - moneyOutToday;
 
     // Global Debtors / Creditors
-    const totalDebts = debtors.reduce((sum, d) => sum + Math.max(0, d.totalOwed - d.totalPaid), 0);
-    const activeDebtorsCount = debtors.filter(d => (d.totalOwed - d.totalPaid) > 0).length;
+    const totalDebts = debtors.reduce((sum, d) => sum + (d.totalOwed - d.totalPaid), 0);
+    const activeDebtorsCount = debtors.filter(d => (d.totalOwed - d.totalPaid) !== 0).length;
 
-    const totalCreditors = creditors.reduce((sum, c) => sum + Math.max(0, c.totalOwed - c.totalPaid), 0);
-    const activeCreditorsCount = creditors.filter(c => (c.totalOwed - c.totalPaid) > 0).length;
+    const totalCreditors = creditors.reduce((sum, c) => sum + (c.totalOwed - c.totalPaid), 0);
+    const activeCreditorsCount = creditors.filter(c => (c.totalOwed - c.totalPaid) !== 0).length;
 
     return (
         <ScrollView
@@ -91,8 +129,17 @@ export default function HomeScreen() {
                             KES {moneyInHouse.toLocaleString()}
                         </Text>
                     </View>
-                    <View className="bg-primary/10 px-2 py-1 rounded-[6px]">
-                        <Text className="text-[10px] font-bold text-primary">Cash & Mpesa</Text>
+                    <View className="flex-row rounded-xl h-full flex-1 ml-3 p-4 justify-around bg-muted">
+                        <View className="flex-1 justify-around items-center"
+                            style={{ borderRightWidth: 1, borderRightColor: "grey" }}
+                        >
+                            <Text className="text-primary font-bold">Cash</Text>
+                            <Text className="text-info font-bold">KES {(cashAvailableToday).toLocaleString()}</Text>
+                        </View>
+                        <View className="flex-1 justify-around items-center" >
+                            <Text className="text-primary font-bold">M-Pesa</Text>
+                            <Text className="text-info font-bold">KES {(mpesaAvailableToday).toLocaleString()}</Text>
+                        </View>
                     </View>
                 </View>
             </View>
@@ -104,13 +151,13 @@ export default function HomeScreen() {
                         <Text className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] mb-1">
                             To be Collected
                         </Text>
-                        <Text className="text-[28px] font-bold text-foreground">
+                        <Text className={`text-[28px] font-bold ${totalDebts < 0 ? 'text-primary' : 'text-foreground'}`}>
                             KES {totalDebts.toLocaleString()}
                         </Text>
                     </View>
                     {activeDebtorsCount > 0 && (
-                        <View className="bg-destructive/10 px-2 py-1 rounded-[6px]">
-                            <Text className="text-[10px] font-bold text-destructive">{activeDebtorsCount} Accounts</Text>
+                        <View className={`${totalDebts < 0 ? 'bg-primary/10' : 'bg-destructive/10'} px-2 py-1 rounded-[6px]`}>
+                            <Text className={`text-[10px] font-bold ${totalDebts < 0 ? 'text-primary' : 'text-destructive'}`}>{activeDebtorsCount} Accounts</Text>
                         </View>
                     )}
                 </View>
@@ -121,15 +168,15 @@ export default function HomeScreen() {
                 <View className="flex-row justify-between items-start">
                     <View>
                         <Text className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] mb-1">
-                            Amount We Owe (To pay out)
+                            Amount We Owe
                         </Text>
-                        <Text className="text-[28px] font-bold text-foreground">
+                        <Text className={`text-[28px] font-bold ${totalCreditors < 0 ? 'text-primary' : 'text-foreground'}`}>
                             KES {totalCreditors.toLocaleString()}
                         </Text>
                     </View>
                     {activeCreditorsCount > 0 && (
-                        <View className="bg-warning/10 px-2 py-1 rounded-[6px]">
-                            <Text className="text-[10px] font-bold text-warning">{activeCreditorsCount} Suppliers</Text>
+                        <View className={`${totalCreditors < 0 ? 'bg-primary/10' : 'bg-warning/10'} px-2 py-1 rounded-[6px]`}>
+                            <Text className={`text-[10px] font-bold ${totalCreditors < 0 ? 'text-primary' : 'text-warning'}`}>{activeCreditorsCount} Suppliers</Text>
                         </View>
                     )}
                 </View>
@@ -138,6 +185,14 @@ export default function HomeScreen() {
             {/* 4. Net Profit Card */}
             <View className="bg-card border-[0.5px] border-border-light rounded-[16px] p-5 mb-6 shadow-sm">
                 <View className="flex-row justify-between items-start">
+                    <View>
+                        <Text className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] mb-1">
+                            Gross Profit (Today)
+                        </Text>
+                        <Text className="text-[32px] font-bold text-foreground">
+                            KES {grossProfitToday.toLocaleString()}
+                        </Text>
+                    </View>
                     <View>
                         <Text className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] mb-1">
                             Net Profit (Today)
@@ -252,14 +307,10 @@ export default function HomeScreen() {
 
                 <View className="bg-card border-[0.5px] border-border-light rounded-[16px] overflow-hidden shadow-sm">
                     {transactions.slice(0, 5).map((tx, idx) => {
-                        const isExpense = tx.type === "expense" || tx.type === "purchase";
-                        const txColor =
-                            tx.type === "sale"
-                                ? "#2ecc71"
-                                : tx.type === "takeaway" || tx.type === "consumed"
-                                    ? "#f39c12"
-                                    : "#e74c3c";
-                        const amtSign = isExpense ? "-" : "+";
+                        const isOutflow = ["expense", "purchase", "creditor_payment", "collection", "refund"].includes(tx.type);
+                        const isFlow = ["takeaway", "consumed", "adjustment", "day_close", "takeout_reconciliation"].includes(tx.type);
+                        const txColor = isFlow ? "#f39c12" : isOutflow ? "#e74c3c" : "#2ecc71";
+                        const amtSign = isOutflow ? "-" : "+";
                         const isLast = idx === Math.min(transactions.length, 5) - 1;
 
                         return (
@@ -268,13 +319,13 @@ export default function HomeScreen() {
                                 className={`flex-row items-center p-4 ${!isLast ? 'border-b-[0.5px] border-border-light' : ''} gap-3`}
                             >
                                 <View
-                                    className={`w-10 h-10 rounded-full items-center justify-center ${isExpense ? "bg-destructive/10" : "bg-primary/10"
+                                    className={`w-10 h-10 rounded-full items-center justify-center ${isOutflow ? "bg-destructive/10" : isFlow ? "bg-warning/10" : "bg-primary/10"
                                         }`}
                                 >
                                     <Ionicons
-                                        name={isExpense ? "trending-down" : "trending-up"}
+                                        name={isOutflow ? "trending-down" : isFlow ? "swap-horizontal" : "trending-up"}
                                         size={18}
-                                        color={isExpense ? "#e74c3c" : "#2ecc71"}
+                                        color={txColor}
                                     />
                                 </View>
                                 <View className="flex-1">
@@ -289,7 +340,7 @@ export default function HomeScreen() {
                                     style={{ color: txColor }}
                                     className="text-[14px] font-bold"
                                 >
-                                    {tx.type === "takeaway" || tx.type === "consumed"
+                                    {isFlow
                                         ? "Flow"
                                         : `${amtSign}KES ${tx.amount.toLocaleString()}`}
                                 </Text>

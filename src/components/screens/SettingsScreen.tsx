@@ -1,5 +1,5 @@
 import { useApp } from "@/database/AppContext";
-import { getSetting, updateSetting, getMeals, addTransaction } from "@/database/db";
+import { getSetting, updateSetting, getMeals } from "@/database/db";
 import React, { useEffect, useState } from "react";
 import { Alert, Text, TextInput, TouchableOpacity, View, ScrollView, KeyboardAvoidingView } from "react-native";
 import ScreenHeader from "@/components/ui/ScreenHeader";
@@ -29,23 +29,29 @@ function FieldLabel({ label }: { label: string }) {
 export default function SettingsScreen() {
     const {
         businessName,
-        openingBalance,
-        setOpenBalance,
         saveBusinessName,
         transactions,
         closeDay,
         resetDatabase,
         refreshAll,
+        setOpeningBalanceWithLock,
+        hasOpeningBalanceToday,
+        recordCollection,
     } = useApp();
 
     const [tempBusinessName, setTempBusinessName] = useState(businessName);
     const [closeDayOperant, setCloseDayOperant] = useState("");
+    const [openingCash, setOpeningCash] = useState("0");
+    const [openingMpesa, setOpeningMpesa] = useState("0");
+    const [collectionCash, setCollectionCash] = useState("0");
+    const [collectionMpesa, setCollectionMpesa] = useState("0");
     const [showResetConfirm, setShowResetConfirm] = useState(false);
     const [resetPassword, setResetPassword] = useState("");
     const [staffOperants, setStaffOperants] = useState("");
     const [suppliers, setSuppliers] = useState("");
     const [lockOBInput, setLockOBInput] = useState(false);
-    const [openingDay, setOpeningDay] = useState("");
+    const [obSeeder, setObSeeder] = useState("");
+    const [seeder, setSeeder] = useState("Management");
 
 
     useEffect(() => {
@@ -55,6 +61,27 @@ export default function SettingsScreen() {
         setStaffOperants(savedStaff || "John, Jane");
         const savedSuppliers = getSetting("suppliers");
         setSuppliers(savedSuppliers || "General");
+
+        // Check if OB is locked for today
+        const obSeededDate = getSetting("ob_seeded_date");
+        const today = new Date().toDateString();
+        const savedSeeder = getSetting("ob_seeder");
+
+        if (obSeededDate === today) {
+            setLockOBInput(true);
+            setObSeeder(savedSeeder || "Management");
+        } else {
+            setLockOBInput(false);
+            setObSeeder("");
+            // Auto-reset opening balance display to 0 on new day
+            setOpeningCash("0");
+            setOpeningMpesa("0");
+            updateSetting("opening_balance", "0");
+            refreshAll();
+        }
+        // This mount-time settings sync intentionally avoids refreshAll as a dependency;
+        // refreshAll writes state and would turn this initialization into a loop.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [businessName]);
 
     // ─── Today's summary ─────────────────────────────────────────────────────────
@@ -62,14 +89,73 @@ export default function SettingsScreen() {
     const todayTx = transactions.filter(
         (t) => new Date(t.date).toDateString() === today,
     );
-    const todaySales = todayTx
-        .filter((t) => t.type === "sale" || t.type === "takeaway")
-        .reduce((s, t) => s + t.amount, 0);
-    const todayExpenses = todayTx
-        .filter((t) => t.type === "expense" || t.type === "purchase")
-        .reduce((s, t) => s + t.amount, 0);
-    const netBalanceBF = todaySales + (openingBalance) - todayExpenses;
+    // Opening balance should come from today's opening_balance transaction, not global setting
+    const openingCashToday = todayTx
+        .filter((t) => t.type === "opening_balance" && t.paymentMethod === "cash")
+        .reduce((sum, t) => sum + t.amount, 0);
+    const openingMpesaToday = todayTx
+        .filter((t) => t.type === "opening_balance" && t.paymentMethod === "mpesa")
+        .reduce((sum, t) => sum + t.amount, 0);
+    const openingBalanceToday = openingCashToday + openingMpesaToday;
 
+    const cashDebtorPaymentsToday = todayTx
+        .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "cash")
+        .reduce((sum, t) => sum + t.amount, 0);
+    const mpesaDebtorPaymentsToday = todayTx
+        .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "mpesa")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const cashPurchasePaymentsToday = todayTx
+        .filter((t) => t.type === "purchase" && t.paymentMethod === "cash")
+        .reduce((sum, t) => sum + t.amount, 0);
+    const mpesaPurchasePaymentsToday = todayTx
+        .filter((t) => t.type === "purchase" && t.paymentMethod === "mpesa")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const cashExpensesToday = todayTx
+        .filter((t) => t.type === "expense" && t.paymentMethod === "cash")
+        .reduce((sum, t) => sum + t.amount, 0);
+    const mpesaExpensesToday = todayTx
+        .filter((t) => t.type === "expense" && t.paymentMethod === "mpesa")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const cashSalesToday = todayTx
+        .filter((t) => t.type === "sale" && t.paymentMethod === "cash")
+        .reduce((sum, t) => sum + t.amount, 0);
+    const mpesaSalesToday = todayTx
+        .filter((t) => t.type === "sale" && t.paymentMethod === "mpesa")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const cashCreditorPaymentsToday = todayTx
+        .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "cash")
+        .reduce((sum, t) => sum + t.amount, 0);
+    const mpesaCreditorPaymentsToday = todayTx
+        .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "mpesa")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const cashCollectionsToday = todayTx
+        .filter((t) => t.type === "collection" && t.paymentMethod === "cash")
+        .reduce((sum, t) => sum + t.amount, 0);
+    const mpesaCollectionsToday = todayTx
+        .filter((t) => t.type === "collection" && t.paymentMethod === "mpesa")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const paidSalesToday = cashSalesToday + mpesaSalesToday;
+    const moneyOutToday =
+        cashPurchasePaymentsToday + mpesaPurchasePaymentsToday +
+        cashExpensesToday + mpesaExpensesToday +
+        cashCreditorPaymentsToday + mpesaCreditorPaymentsToday +
+        cashCollectionsToday + mpesaCollectionsToday;
+
+    const expectedCashInHouse =
+        openingCashToday + cashSalesToday + cashDebtorPaymentsToday -
+        cashPurchasePaymentsToday - cashExpensesToday - cashCreditorPaymentsToday - cashCollectionsToday;
+    const expectedMpesaInHouse =
+        openingMpesaToday + mpesaSalesToday + mpesaDebtorPaymentsToday -
+        mpesaPurchasePaymentsToday - mpesaExpensesToday - mpesaCreditorPaymentsToday - mpesaCollectionsToday;
+    const moneyInHouse = expectedCashInHouse + expectedMpesaInHouse;
+
+    // Global Debtors / Creditors
     // ─── Handlers ─────────────────────────────────────────────────────────────────
     const handleSaveBusinessName = () => {
         if (!tempBusinessName.trim()) {
@@ -80,41 +166,51 @@ export default function SettingsScreen() {
         Alert.alert("✅ Saved", "Business name updated successfully.");
     };
 
-    const dateFormated = new Date().toLocaleDateString("en-KE", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-    });
-
     const now = new Date().toDateString();
+
     const handleSaveOpeningBalance = () => {
-        Alert.alert(`Old day ${openingDay} vs new day ${now}`)
-        if (now == openingDay) { 
-            Alert.alert("Restricted", "You already set the opening balance for the day")
-        }
-        const val = (openingBalance);
-        if (isNaN(val) || val < 0) {
-            Alert.alert("Invalid", "Opening balance must be a non-negative number.");
+        const obSeededDate = getSetting("ob_seeded_date");
+        if (obSeededDate === now || hasOpeningBalanceToday()) {
+            Alert.alert("Restricted", "You already set the opening balance for the day \nRecord extra money as sales");
             return;
         }
+        const cashVal = parseFloat(openingCash) || 0;
+        const mpesaVal = parseFloat(openingMpesa) || 0;
+        if (cashVal < 0 || mpesaVal < 0) {
+            Alert.alert("Invalid", "Opening balances must be non-negative numbers.");
+            return;
+        }
+        if (cashVal + mpesaVal <= 0) {
+            Alert.alert("Invalid", "Enter a cash or M-Pesa opening balance.");
+            return;
+        }
+
+        // Get the current operant (who is seeding)
+
         Alert.alert("Confirm Input Locking", "This will lock the input for the day! \nContinue?", [
             { text: "Cancel", style: "cancel" },
             {
                 text: "Proceed",
                 style: "destructive",
                 onPress: () => {
-                    updateSetting("opening_balance", String(val));
-                    setOpeningDay(now);
-                    setLockOBInput(true);
-                    addTransaction(
-                        "seed",
-                        "Opening Balance for the day " + dateFormated,
-                        "Seed capital",
-                        openingBalance,
-                        "cash",
-                        "Management",
-                    );
-                    Alert.alert("✅ Saved", "Opening balance updated.");
+                    try {
+                        // Opening balance must be created through the locked accounting path
+                        // so the transaction table remains the source of truth.
+                        setOpeningBalanceWithLock(cashVal, mpesaVal, seeder);
+                        updateSetting("ob_seeded_date", now);
+                        updateSetting("ob_seeder", seeder);
+                        updateSetting("opening_balance_cash", cashVal.toString());
+                        updateSetting("opening_balance_mpesa", mpesaVal.toString());
+                        setLockOBInput(true);
+                        setObSeeder(seeder);
+                        refreshAll();
+                        Alert.alert("✅ Saved", "Opening balance updated.");
+                    } catch (error) {
+                        Alert.alert(
+                            "Opening Balance Locked",
+                            error instanceof Error ? error.message : "Opening balance could not be saved.",
+                        );
+                    }
                 }
             },
         ])
@@ -140,37 +236,84 @@ export default function SettingsScreen() {
         Alert.alert("✅ Saved", "Suppliers list updated.");
     };
 
-    const handleCloseDay = () => {
+    const [collectorName, setCollectorName] = useState("");
+
+    const handleRecordCollection = (confirmedVariance = false) => {
         if (!closeDayOperant.trim()) {
             Alert.alert(
                 "Staff Name Required",
-                "Please enter the operant (staff) name to close the day.",
+                "Please enter the staff member handing over the collection.",
+            );
+            return;
+        }
+        if (!collectorName.trim()) {
+            Alert.alert("Collector Required", "Please select who collected the money.");
+            return;
+        }
+
+        const actualCash = parseFloat(collectionCash) || 0;
+        const actualMpesa = parseFloat(collectionMpesa) || 0;
+        if (actualCash < 0 || actualMpesa < 0) {
+            Alert.alert("Invalid Collection", "Collected amounts must be non-negative numbers.");
+            return;
+        }
+        if (actualCash + actualMpesa <= 0 && moneyInHouse > 0) {
+            Alert.alert("Collection Required", "Enter the actual cash or M-Pesa collected.");
+            return;
+        }
+
+        const cashVariance = actualCash - expectedCashInHouse;
+        const mpesaVariance = actualMpesa - expectedMpesaInHouse;
+        if (!confirmedVariance && (Math.abs(cashVariance) > 0.01 || Math.abs(mpesaVariance) > 0.01)) {
+            Alert.alert(
+                "Collection Variance",
+                `Expected Cash: ${fmt(expectedCashInHouse)}\nActual Cash: ${fmt(actualCash)}\nVariance: ${fmt(cashVariance)}\n\nExpected M-Pesa: ${fmt(expectedMpesaInHouse)}\nActual M-Pesa: ${fmt(actualMpesa)}\nVariance: ${fmt(mpesaVariance)}\n\nConfirm these are the amounts actually collected?`,
+                [
+                    { text: "Review", style: "cancel" },
+                    {
+                        text: "Confirm Collection",
+                        style: "destructive",
+                        onPress: () => handleRecordCollection(true),
+                    },
+                ],
             );
             return;
         }
 
         Alert.alert(
-            "Close Day?",
-            `This will archive today's activity.\n\nSales: ${fmt(
-                todaySales,
-            )}\nExpenses: ${fmt(todayExpenses)}\nNet B/F: ${fmt(
-                netBalanceBF,
-            )}\n\nContinue?`,
+            "Record Collection?",
+            `Cash expected: ${fmt(expectedCashInHouse)}\nCash collected: ${fmt(actualCash)}\n\nM-Pesa expected: ${fmt(expectedMpesaInHouse)}\nM-Pesa collected: ${fmt(actualMpesa)}\n\nThe day will close automatically after collection is recorded.`,
             [
                 { text: "Cancel", style: "cancel" },
                 {
-                    text: "Close Day",
+                    text: "Record Collection",
                     style: "destructive",
                     onPress: () => {
-                        closeDay(closeDayOperant.trim());
-                        setCloseDayOperant("");
-                        setLockOBInput(false);
-                        Alert.alert(
-                            "✅ Day Closed",
-                            `Closed by ${closeDayOperant.trim()}.\nNet Balance B/F: ${fmt(
-                                netBalanceBF,
-                            )} \n\nThe amounts will be reset at midnight!`,
-                        );
+                        try {
+                            if (actualCash + actualMpesa > 0) {
+                                recordCollection(
+                                    actualCash,
+                                    actualMpesa,
+                                    collectorName.trim(),
+                                    closeDayOperant.trim(),
+                                );
+                            }
+                            closeDay(closeDayOperant.trim(), collectorName.trim() || undefined);
+                            setCloseDayOperant("");
+                            setCollectorName("");
+                            setCollectionCash("0");
+                            setCollectionMpesa("0");
+                            setLockOBInput(false);
+                            Alert.alert(
+                                "Collection Recorded",
+                                `Collected by ${collectorName.trim()}.\nCash variance: ${fmt(cashVariance)}\nM-Pesa variance: ${fmt(mpesaVariance)}\n\nThe day has been closed automatically.`,
+                            );
+                        } catch (error) {
+                            Alert.alert(
+                                "Collection Failed",
+                                error instanceof Error ? error.message : "The collection could not be recorded.",
+                            );
+                        }
                     },
                 },
             ],
@@ -211,33 +354,54 @@ export default function SettingsScreen() {
                     {/* ── Financial Settings ────────────────────────────────────────── */}
                     <SectionHeader label="Financial Settings" />
 
-                    <FieldLabel label="Opening Balance (KES)" />
-                    <TextInput
-                        className={`${lockOBInput ? 'bg-muted' : 'bg-input'} border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5 mb-2.5`}
-                        placeholder="0.00"
-                        keyboardType="numeric"
-                        placeholderTextColor="#4a5e4c"
-                        onChangeText={setOpenBalance}
-                        editable={!lockOBInput}
-                    />
+                    <View className="flex-row gap-3 mb-2.5">
+                        <View className="flex-1">
+                            <FieldLabel label="Cash Seeded (KES)" />
+                            <TextInput
+                                className={`${lockOBInput ? 'bg-muted' : 'bg-input'} border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5`}
+                                placeholder="0.00"
+                                keyboardType="numeric"
+                                placeholderTextColor="#4a5e4c"
+                                value={openingCash}
+                                onChangeText={setOpeningCash}
+                                editable={!lockOBInput}
+                            />
+                        </View>
+                        <View className="flex-1">
+                            <FieldLabel label="M-Pesa Seeded (KES)" />
+                            <TextInput
+                                className={`${lockOBInput ? 'bg-muted' : 'bg-input'} border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5`}
+                                placeholder="0.00"
+                                keyboardType="numeric"
+                                placeholderTextColor="#4a5e4c"
+                                value={openingMpesa}
+                                onChangeText={setOpeningMpesa}
+                                editable={!lockOBInput}
+                            />
+                        </View>
+                    </View>
+
+                    {/* Seeder field — OPTIONAL*/}
+                    <View className="mb-4">
+                        <ActionDropdown
+                            label="CAPITAL PROVIDED BY — STAFF NAME (OPTIONAL)"
+                            value={seeder}
+                            onChange={setSeeder}
+                            options={staffOperants.split(',').map(s => s.trim()).filter(Boolean)}
+                            modalTitle="Select Capital Seeder"
+                        />
+                    </View>
+
                     <InfoAlert message={
                         <Text>
                             <Text className="text-warning font-bold">Note! </Text>
                             Once the opening balance is saved, there is no more room for saving it for the day
+                            {obSeeder && <Text> (Seeded by {obSeeder})</Text>}
                         </Text>}
                     />
                     <TouchableOpacity
                         className="bg-input border-[0.5px] border-primary/30 rounded-[10px] py-3 items-center justify-center"
-                        onPress={
-                            lockOBInput ?
-                                () => {
-                                    Alert.alert(
-                                        "Restricted",
-                                        "The opening balance is currently disabled\
-                                    \nRecord extra money as a sale")
-                                } :
-                                handleSaveOpeningBalance
-                        }
+                        onPress={handleSaveOpeningBalance}
                     >
                         <Text className="text-[12px] font-bold text-primary">
                             {
@@ -300,7 +464,7 @@ export default function SettingsScreen() {
                                 <View key={meal.id} className="flex-row justify-between items-center py-2 border-b border-border-light">
                                     <View>
                                         <Text className="text-[12px] text-foreground">{meal.name}</Text>
-                                        <Text className="text-[10px] text-muted">KES {meal.price} • Stock: {meal.stock}</Text>
+                                        <Text className="text-[10px] text-info">KES {meal.price} • Stock: {meal.stock}</Text>
                                     </View>
                                     <View className={`w-2 h-2 rounded-full ${meal.isAvailable ? 'bg-primary' : 'bg-danger'}`} />
                                 </View>
@@ -317,54 +481,62 @@ export default function SettingsScreen() {
                         Add new meals from the Inventory tab. Set items as available when prepared.
                     </Text>
 
-                    {/* ── Close Day / New Day ───────────────────────────────────────── */}
-                    <SectionHeader label="Close Day / New Day" />
+                    {/* ── Collection / Auto Close ───────────────────────────────────── */}
+                    <SectionHeader label="Collection / Auto Close" />
 
                     <InfoAlert message={
                         <Text>
-                            Closing the day calculates your net balance, archives today's transactions into the <Text className="font-bold text-primary">Ledger</Text>, and prepares a clean slate for the next day. This happens <Text className="font-bold text-primary">automatically at midnight</Text>, but you can do it manually here, where transactions will be <Text className=" font-bold text-warning">reset at midnight </Text>
+                            Record the actual cash and M-Pesa handed over. The system shows expected amounts from {"today's"} transactions, then closes the day automatically after collection is saved.
                         </Text>
                     } />
 
                     {/* Today's summary card */}
                     <View className="bg-input border-[0.5px] border-border-light rounded-[14px] p-4 mb-4 gap-2">
                         <Text className="text-[10px] font-bold text-foreground tracking-[0.8px] uppercase mb-1">
-                            Today's Summary
+                            {"Today's Summary"}
                         </Text>
                         <View className="flex-row justify-between pb-3">
                             <Text className="text-[12px] text-foreground">
-                                Today's Opening balance
+                                {"Today's Opening Balance"}
                             </Text>
                             <Text className="text-[12px] font-bold text-primary">
-                                {fmt((openingBalance))}
+                                {fmt(openingBalanceToday)}
+                            </Text>
+                        </View>
+                        <View className="flex-row justify-between">
+                            <Text className="text-[12px] text-foreground">Cash Expected In-House</Text>
+                            <Text className="text-[12px] font-bold text-primary">{fmt(expectedCashInHouse)}</Text>
+                        </View>
+                        <View className="flex-row justify-between">
+                            <Text className="text-[12px] text-foreground">M-Pesa Expected In-House</Text>
+                            <Text className="text-[12px] font-bold text-info">{fmt(expectedMpesaInHouse)}</Text>
+                        </View>
+                        <View className="flex-row justify-between">
+                            <Text className="text-[12px] text-foreground">
+                                {"Today's Paid Sales"}
+                            </Text>
+                            <Text className="text-[12px] font-bold text-primary">
+                                {fmt(paidSalesToday)}
                             </Text>
                         </View>
                         <View className="flex-row justify-between">
                             <Text className="text-[12px] text-foreground">
-                                Today's Sales
-                            </Text>
-                            <Text className="text-[12px] font-bold text-primary">
-                                {fmt(todaySales)}
-                            </Text>
-                        </View>
-                        <View className="flex-row justify-between">
-                            <Text className="text-[12px] text-foreground">
-                                Today's Expenses
+                                {"Today's Expenses"}
                             </Text>
                             <Text className="text-[12px] font-bold text-destructive">
-                                {fmt(todayExpenses)}
+                                {fmt(moneyOutToday)}
                             </Text>
                         </View>
                         <View className="h-[0.5px] bg-white/10 dark:bg-white/5 my-1" />
                         <View className="flex-row justify-between">
                             <Text className="text-[12px] text-foreground">
-                                Net Balance B/F
+                                Net Balance
                             </Text>
                             <Text
-                                className={`text-[13px] font-bold ${netBalanceBF >= 0 ? "text-primary" : "text-destructive"
+                                className={`text-[13px] font-bold ${moneyInHouse >= 0 ? "text-primary" : "text-destructive"
                                     }`}
                             >
-                                {fmt(netBalanceBF)}
+                                {fmt(moneyInHouse)}
                             </Text>
                         </View>
                     </View>
@@ -372,7 +544,7 @@ export default function SettingsScreen() {
                     {/* Operant field — REQUIRED */}
                     <View className="mb-2">
                         <ActionDropdown
-                            label="CLOSED BY — STAFF NAME"
+                            label="HANDED OVER BY — STAFF NAME"
                             value={closeDayOperant}
                             onChange={setCloseDayOperant}
                             options={staffOperants.split(',').map(s => s.trim()).filter(Boolean)}
@@ -381,17 +553,63 @@ export default function SettingsScreen() {
                         />
                     </View>
 
+                    {/* Collector field — REQUIRED */}
+                    <View className="mb-4">
+                        <ActionDropdown
+                            label="COLLECTED BY — STAFF NAME"
+                            value={collectorName}
+                            onChange={setCollectorName}
+                            options={staffOperants.split(',').map(s => s.trim()).filter(Boolean)}
+                            modalTitle="Select Collector"
+                            isRequired
+                        />
+                    </View>
+
+                    <View className="bg-input border-[0.5px] border-border-light rounded-[14px] p-4 mb-4 gap-3">
+                        <Text className="text-[10px] font-bold text-foreground tracking-[0.8px] uppercase">
+                            Actual Collection
+                        </Text>
+                        <View>
+                            <View className="flex-row justify-between mb-1.5">
+                                <Text className="text-[10px] font-bold text-foreground uppercase">Cash Collected</Text>
+                                <Text className="text-[10px] font-bold text-primary">Expected: {fmt(expectedCashInHouse)}</Text>
+                            </View>
+                            <TextInput
+                                className="bg-background border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5"
+                                placeholder="0.00"
+                                keyboardType="numeric"
+                                placeholderTextColor="#4a5e4c"
+                                value={collectionCash}
+                                onChangeText={setCollectionCash}
+                            />
+                        </View>
+                        <View>
+                            <View className="flex-row justify-between mb-1.5">
+                                <Text className="text-[10px] font-bold text-foreground uppercase">M-Pesa Collected</Text>
+                                <Text className="text-[10px] font-bold text-info">Expected: {fmt(expectedMpesaInHouse)}</Text>
+                            </View>
+                            <TextInput
+                                className="bg-background border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5"
+                                placeholder="0.00"
+                                keyboardType="numeric"
+                                placeholderTextColor="#4a5e4c"
+                                value={collectionMpesa}
+                                onChangeText={setCollectionMpesa}
+                            />
+                        </View>
+                    </View>
+
                     <TouchableOpacity
                         className="bg-primary rounded-[12px] py-4 items-center justify-center"
-                        onPress={handleCloseDay}
+                        onPress={() => handleRecordCollection()}
                     >
                         <Text className="text-[13px] font-bold text-primary-foreground">
-                            🔒 Close Day & Begin New Day
+                            Record Collection
                         </Text>
                     </TouchableOpacity>
 
                     <Text className="text-[10px] text-warning text-center mt-2 mb-6">
-                        All today's activity will be archived. This cannot be undone.
+                        {"Closing is automatic after collection is recorded. This cannot be undone."}
                     </Text>
 
                     {/* ── Danger Zone ───────────────────────────────────────── */}

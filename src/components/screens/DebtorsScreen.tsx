@@ -22,8 +22,8 @@ export default function DebtorsScreen({
 }: DebtorsScreenProps) {
   const { debtors, creditors, clearDebtorAccount } = useApp();
 
-  const activeDebtors = debtors.filter(d => (d.totalOwed - d.totalPaid) > 0);
-  const activeCreditors = creditors.filter(c => (c.totalOwed - c.totalPaid) > 0);
+  const activeDebtors = debtors.filter(debtor => (debtor.totalOwed - debtor.totalPaid) !== 0);
+  const activeCreditors = creditors.filter(creditor => (creditor.totalOwed - creditor.totalPaid) !== 0);
 
   return (
     <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
@@ -58,6 +58,7 @@ export default function DebtorsScreen({
           )}
           {activeDebtors.map((debtor, idx) => {
             const outstanding = debtor.totalOwed - debtor.totalPaid;
+            const isNegative = outstanding < 0;
             return (
               <View key={idx} className="bg-card border-[0.5px] border-border rounded-xl p-3 mb-2">
                 <View className="flex-row justify-between items-start">
@@ -71,30 +72,36 @@ export default function DebtorsScreen({
                     </Text>
                   </View>
                   <View className="items-end">
-                    <Text className="text-[14px] font-bold text-destructive">KES {outstanding.toLocaleString()}</Text>
-                    <Text className="text-[8px] text-muted-foreground">Outstanding Balance</Text>
+                    <Text className={`text-[14px] font-bold ${isNegative ? 'text-primary' : 'text-destructive'}`}>KES {outstanding.toLocaleString()}</Text>
+                    <Text className="text-[8px] text-muted-foreground">{isNegative ? 'We Owe Them' : 'Outstanding Balance'}</Text>
                   </View>
                 </View>
 
                 <View className="flex-row justify-between mt-2 border-b-[0.5px] border-border pb-2">
                   <Text className="text-[10px] text-muted-foreground">
-                    Total Owed: KES {debtor.totalOwed.toLocaleString()}
+                    Total Ever Owed: KES {debtor.totalOwed.toLocaleString()}
                   </Text>
                   <Text className="text-[10px] text-primary">
-                    Total Paid: KES {debtor.totalPaid.toLocaleString()}
+                    Total Ever Paid: KES {debtor.totalPaid.toLocaleString()}
                   </Text>
                 </View>
 
                 <View className="flex-row gap-2 mt-2">
-                  <TouchableOpacity
-                    className="flex-1 bg-primary items-center justify-center py-[7px] rounded-lg"
-                    onPress={() => {
-                      setSelectedDebtorName(debtor.name);
-                      setPaymentModalVisible(true);
-                    }}
-                  >
-                    <Text className="text-[11px] font-bold text-background">Record Payment</Text>
-                  </TouchableOpacity>
+                  {isNegative ? (
+                    <View className="flex-1 bg-muted items-center justify-center py-[7px] rounded-lg">
+                      <Text className="text-[11px] font-bold text-muted-foreground">Customer Credit</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      className="flex-1 bg-primary items-center justify-center py-[7px] rounded-lg"
+                      onPress={() => {
+                        setSelectedDebtorName(debtor.name);
+                        setPaymentModalVisible(true);
+                      }}
+                    >
+                      <Text className="text-[11px] font-bold text-background">Record Payment</Text>
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity
                     className="w-8 h-8 rounded-lg border-[0.5px] border-destructive/30 bg-destructive/10 items-center justify-center"
                     onPress={() => clearDebtorAccount(debtor.id)}
@@ -117,6 +124,7 @@ export default function DebtorsScreen({
           )}
           {activeCreditors.map((creditor, idx) => {
             const outstanding = creditor.totalOwed - creditor.totalPaid;
+            const isNegative = outstanding < 0;
             return (
               <View key={idx} className="bg-card border-[0.5px] border-border rounded-xl p-3 mb-2">
                 <View className="flex-row justify-between items-start">
@@ -130,30 +138,36 @@ export default function DebtorsScreen({
                     </Text>
                   </View>
                   <View className="items-end">
-                    <Text className="text-[14px] font-bold text-warning">KES {outstanding.toLocaleString()}</Text>
-                    <Text className="text-[8px] text-muted-foreground">We Owe</Text>
+                    <Text className={`text-[14px] font-bold ${isNegative ? 'text-primary' : 'text-warning'}`}>KES {outstanding.toLocaleString()}</Text>
+                    <Text className="text-[8px] text-muted-foreground">{isNegative ? 'They Owe Us' : 'We Owe'}</Text>
                   </View>
                 </View>
 
                 <View className="flex-row justify-between mt-2 border-b-[0.5px] border-border pb-2">
                   <Text className="text-[10px] text-muted-foreground">
-                    Total Owed: KES {creditor.totalOwed.toLocaleString()}
+                    Total Ever Owed: KES {creditor.totalOwed.toLocaleString()}
                   </Text>
                   <Text className="text-[10px] text-primary">
-                    Total Paid: KES {creditor.totalPaid.toLocaleString()}
+                    Total Ever Paid: KES {creditor.totalPaid.toLocaleString()}
                   </Text>
                 </View>
 
                 <View className="flex-row gap-2 mt-2">
-                  <TouchableOpacity
-                    className="flex-1 bg-warning items-center justify-center py-[7px] rounded-lg"
-                    onPress={() => {
-                      setSelectedCreditorName(creditor.name);
-                      setCreditorPayModalVisible(true);
-                    }}
-                  >
-                    <Text className="text-[11px] font-bold text-background">Record Partial Payment</Text>
-                  </TouchableOpacity>
+                  {isNegative ? (
+                    <View className="flex-1 bg-muted items-center justify-center py-[7px] rounded-lg">
+                      <Text className="text-[11px] font-bold text-muted-foreground">Supplier Credit</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      className="flex-1 bg-warning items-center justify-center py-[7px] rounded-lg"
+                      onPress={() => {
+                        setSelectedCreditorName(creditor.name);
+                        setCreditorPayModalVisible(true);
+                      }}
+                    >
+                      <Text className="text-[11px] font-bold text-background">Record Partial Payment</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             );

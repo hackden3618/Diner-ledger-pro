@@ -24,11 +24,14 @@ import {
     getSetting,
     getTransactions,
     getUnreadNotificationsCount,
+    hasOpeningBalanceToday,
     initDatabase,
     InventoryItem,
     markNotificationsAsRead,
     Meal,
     Notification,
+    recordCollection as dbRecordCollection,
+    recordOpeningBalance,
     reconcileTakeoutSession,
     resetDatabase,
     setMealAvailability,
@@ -48,6 +51,8 @@ interface AppContextType {
     businessName: string;
     openingBalance: number,
     setOpenBalance: (openBalance: string) => void,
+    setOpeningBalanceWithLock: (cashAmount: number, mpesaAmount: number, operant: string) => void,
+    hasOpeningBalanceToday: () => boolean,
     meals: Meal[];
     transactions: Transaction[];
     debtors: Debtor[];
@@ -68,11 +73,12 @@ interface AppContextType {
     // Sales
     recordSale: (
         items: { mealId: number; name: string; qty: number; price: number }[],
-        saleType: "dinein" | "takeaway" | "credit" | "consumed",
+        saleType: "dinein" | "credit" | "consumed",
         paymentMethod: "cash" | "mpesa" | "credit" | "none",
         operant: string,
         referenceName?: string,
         amountPaid?: number,
+        consumedDescription?: string,
     ) => void;
 
     // Takeout System
@@ -91,6 +97,7 @@ interface AppContextType {
                 creditSold: number;
             }[];
             totalCash: number;
+            totalMpesa: number;
             globalDebtors: { name: string; amount: number }[];
         },
     ) => void;
@@ -124,6 +131,14 @@ interface AppContextType {
         amount: number,
         paymentMethod: "cash" | "mpesa",
         operant: string,
+    ) => void;
+
+    // Collections
+    recordCollection: (
+        cashAmount: number,
+        mpesaAmount: number,
+        collectorName: string,
+        staffHandingOver: string,
     ) => void;
 
     // Meals & Inventory
@@ -163,7 +178,7 @@ interface AppContextType {
     updateRawInventoryStock: (id: number, newStock: number) => void;
 
     // Day Close
-    closeDay: (operant: string) => void;
+    closeDay: (operant: string, collector?: string) => void;
 
     // Notifications
     clearAllNotifs: () => void;
@@ -237,15 +252,70 @@ export function AppProvider({ children }: { children: ReactNode }) {
                         const hasClosedToday = todayTx.some(t => t.type === 'day_close');
 
                         if (!hasClosedToday) {
+                            // Use the same reconciliation formula as manual closeDay
+                            const cashSales = todayTx
+                                .filter((t) => t.type === "sale" && t.paymentMethod === "cash")
+                                .reduce((s, t) => s + t.amount, 0);
+                            const mpesaSales = todayTx
+                                .filter((t) => t.type === "sale" && t.paymentMethod === "mpesa")
+                                .reduce((s, t) => s + t.amount, 0);
+
+                            const debtorPayments = todayTx
+                                .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "cash")
+                                .reduce((s, t) => s + t.amount, 0);
+                            const mpesaDebtorPayments = todayTx
+                                .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "mpesa")
+                                .reduce((s, t) => s + t.amount, 0);
+
+                            const purchasePayments = todayTx
+                                .filter((t) => t.type === "purchase" && t.paymentMethod === "cash")
+                                .reduce((s, t) => s + t.amount, 0);
+                            const mpesaPurchasePayments = todayTx
+                                .filter((t) => t.type === "purchase" && t.paymentMethod === "mpesa")
+                                .reduce((s, t) => s + t.amount, 0);
+
+                            const expenses = todayTx
+                                .filter((t) => t.type === "expense" && t.paymentMethod === "cash")
+                                .reduce((s, t) => s + t.amount, 0);
+                            const mpesaExpenses = todayTx
+                                .filter((t) => t.type === "expense" && t.paymentMethod === "mpesa")
+                                .reduce((s, t) => s + t.amount, 0);
+
+                            const creditorPayments = todayTx
+                                .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "cash")
+                                .reduce((s, t) => s + t.amount, 0);
+                            const mpesaCreditorPayments = todayTx
+                                .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "mpesa")
+                                .reduce((s, t) => s + t.amount, 0);
+
+                            const collections = todayTx
+                                .filter((t) => t.type === "collection" && t.paymentMethod === "cash")
+                                .reduce((s, t) => s + t.amount, 0);
+                            const mpesaCollections = todayTx
+                                .filter((t) => t.type === "collection" && t.paymentMethod === "mpesa")
+                                .reduce((s, t) => s + t.amount, 0);
+
                             const totalSales = todayTx
                                 .filter((t) => t.type === "sale")
                                 .reduce((s, t) => s + t.amount, 0);
+
                             const totalExpenses = todayTx
                                 .filter((t) => t.type === "expense" || t.type === "purchase")
                                 .reduce((s, t) => s + t.amount, 0);
-                            const netBalance = openingBalance + totalSales - totalExpenses;
 
-                            dbCloseDay(openingBalance, totalSales, totalExpenses, netBalance, "System (Auto)");
+                            // Opening balance should come from today's opening_balance transaction, not global setting
+                            const openingBalanceToday = todayTx
+                                .filter((t) => t.type === "opening_balance" && t.paymentMethod === "cash")
+                                .reduce((s, t) => s + t.amount, 0);
+                            const mpesaOpeningBalanceToday = todayTx
+                                .filter((t) => t.type === "opening_balance" && t.paymentMethod === "mpesa")
+                                .reduce((s, t) => s + t.amount, 0);
+
+                            const expectedCash = openingBalanceToday + cashSales + debtorPayments - purchasePayments - expenses - creditorPayments - collections;
+                            const expectedMpesa = mpesaOpeningBalanceToday + mpesaSales + mpesaDebtorPayments - mpesaPurchasePayments - mpesaExpenses - mpesaCreditorPayments - mpesaCollections;
+                            const netBalance = expectedCash + expectedMpesa;
+
+                            dbCloseDay(openingBalanceToday + mpesaOpeningBalanceToday, totalSales, totalExpenses, netBalance, "System (Auto)", undefined);
                             updateSetting("last_auto_close_date", todayStr);
                             refreshAll();
                         } else {
@@ -270,6 +340,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setBusinessName(name);
     };
 
+    const setOpeningBalanceWithLock = (cashAmount: number, mpesaAmount: number, operant: string) => {
+        // Accounting principle: Opening balance can only be entered once per business day
+        // Once entered, it becomes locked
+        if (hasOpeningBalanceToday()) {
+            throw new Error("Opening balance has already been recorded for today. It is locked.");
+        }
+        if (cashAmount < 0 || mpesaAmount < 0) {
+            throw new Error("Opening balances must be non-negative.");
+        }
+        if (cashAmount + mpesaAmount <= 0) {
+            throw new Error("Enter either a cash or M-Pesa opening balance.");
+        }
+
+        recordOpeningBalance(cashAmount, operant, "cash");
+        recordOpeningBalance(mpesaAmount, operant, "mpesa");
+        setOpenBalance((cashAmount + mpesaAmount).toString());
+        refreshAll();
+    };
+
+    const recordCollection = (
+        cashAmount: number,
+        mpesaAmount: number,
+        collectorName: string,
+        staffHandingOver: string,
+    ) => {
+        try {
+            if (cashAmount < 0 || mpesaAmount < 0) {
+                throw new Error("Collection amounts must be non-negative.");
+            }
+            if (cashAmount + mpesaAmount <= 0) {
+                throw new Error("Enter either cash or M-Pesa collected.");
+            }
+            dbRecordCollection(cashAmount, collectorName, staffHandingOver, "cash");
+            dbRecordCollection(mpesaAmount, collectorName, staffHandingOver, "mpesa");
+            refreshAll();
+        } catch (error) {
+            console.error("Error recording collection:", error);
+            throw error;
+        }
+    };
+
     const _updateSetting = (key: string, value: string) => {
         updateSetting(key, value);
         refreshAll();
@@ -283,18 +394,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // ─── Record Sale ────────────────────────────────────────────────────────────
     const recordSale = (
         items: { mealId: number; name: string; qty: number; price: number }[],
-        saleType: "dinein" | "takeaway" | "credit" | "consumed",
+        saleType: "dinein" | "credit" | "consumed",
         paymentMethod: "cash" | "mpesa" | "credit" | "none",
         operant: string,
         referenceName?: string,
         amountPaid?: number,
+        consumedDescription?: string,
     ) => {
         try {
             let totalAmt = 0;
             const itemSummaries: string[] = [];
             const latestMeals = getMeals(); // avoid stale closure
 
-            // Build line items and deduct stock
+            // Build line items first, then validate stock before mutating anything.
+            // This prevents partial stock deductions if a stale screen submits bad quantities.
             const lineItems: {
                 mealName: string;
                 quantity: number;
@@ -309,22 +422,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     unitPrice: item.price,
                 });
 
+            });
+
+            items.forEach((item) => {
                 const currentMeal = latestMeals.find((m) => m.id === item.mealId);
-                if (currentMeal) {
-                    updateMealStock(
-                        item.mealId,
-                        Math.max(0, currentMeal.stock - item.qty),
-                    );
+                if (!currentMeal) {
+                    throw new Error(`${item.name} no longer exists in inventory.`);
+                }
+                if (item.qty <= 0 || item.qty > currentMeal.stock) {
+                    throw new Error(`Cannot record ${item.qty} ${item.name}. Available stock is ${currentMeal.stock}.`);
                 }
             });
 
+            items.forEach((item) => {
+                const currentMeal = latestMeals.find((m) => m.id === item.mealId)!;
+                updateMealStock(item.mealId, currentMeal.stock - item.qty);
+            });
+
             const itemsText = itemSummaries.join(" · ");
+            const paidAmount = saleType === "dinein" ? amountPaid ?? totalAmt : amountPaid;
 
             if (saleType === "consumed") {
+                // Double-entry: Debit Expense (internal consumption), Credit Inventory
                 addTransaction(
                     "consumed",
                     "Meals Consumed (Internal)",
-                    itemsText,
+                    consumedDescription || itemsText,
                     totalAmt,
                     "none",
                     referenceName,
@@ -336,25 +459,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     `${itemsText} consumed locally · by ${operant}`,
                     "flow",
                 );
-            } else if (saleType === "takeaway") {
-                addTransaction(
-                    "takeaway",
-                    "Meal Taken Out",
-                    itemsText,
-                    totalAmt,
-                    "none",
-                    referenceName,
-                    operant,
-                    lineItems,
-                );
-                addNotification(
-                    "Meal Taken Away",
-                    `${itemsText} taken out by ${referenceName || "customer"
-                    } · logged by ${operant}`,
-                    "flow",
-                );
             } else if (saleType === "credit") {
                 const debtorName = referenceName || "Walk-in Debtor";
+                // Double-entry: Debit Accounts Receivable, Credit Sales Revenue
                 addTransaction(
                     "sale",
                     `Credit Sale — ${debtorName}`,
@@ -371,37 +478,106 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     `KES ${totalAmt.toLocaleString()} owed by ${debtorName} · by ${operant}`,
                     "payment",
                 );
-            } else if (saleType === "dinein") {
+            } else if (saleType === "dinein" && paidAmount === totalAmt) {
                 // Dine-in
                 const methodLabel = paymentMethod === "mpesa" ? "M-Pesa" : "Cash";
+
+                // Double-entry: Debit Cash/M-Pesa, Credit Sales Revenue.
+                // Existing customer credits are not silently consumed here; they need
+                // an explicit refund/adjustment workflow to preserve audit clarity.
                 addTransaction(
                     "sale",
                     `Sale — ${methodLabel}`,
                     itemsText,
                     totalAmt,
                     paymentMethod,
-                    undefined,
+                    referenceName,
                     operant,
                     lineItems,
                 );
             }
 
-            // Check for overpayment
-            if ((saleType === "dinein" || saleType === "takeaway") && amountPaid !== undefined && amountPaid > totalAmt) {
-                const overpayAmount = amountPaid - totalAmt;
+            // Check for underpayment (customer pays less than required)
+            if (saleType === "dinein" && paidAmount !== undefined && paidAmount < totalAmt && paidAmount >= 0) {
+                const underpayAmount = totalAmt - paidAmount;
                 if (referenceName && referenceName.trim() !== "") {
-                    updateCreditor(referenceName, overpayAmount, 0, undefined);
+                    // Underpaid sale: record the full invoice as credit, then the cash received
+                    // as an immediate debtor payment. This keeps revenue complete and avoids
+                    // splitting one sale into duplicate-looking sale records.
+                    addTransaction(
+                        "sale",
+                        `Credit Sale — ${referenceName}`,
+                        itemsText,
+                        totalAmt,
+                        "credit",
+                        referenceName,
+                        operant,
+                        lineItems,
+                    );
+                    if (paidAmount > 0) {
+                        addTransaction(
+                            "debtor_payment",
+                            `Debtor Payment — ${referenceName}`,
+                            `Immediate partial payment for ${itemsText}`,
+                            paidAmount,
+                            paymentMethod,
+                            referenceName,
+                            operant,
+                        );
+                    }
+                    updateDebtor(referenceName, totalAmt, paidAmount);
                     addNotification(
-                        "Overpayment Recorded",
-                        `Customer ${referenceName} overpaid by KES ${overpayAmount}. Added to creditors.`,
+                        "Partial Payment Recorded",
+                        `Customer ${referenceName} paid KES ${paidAmount} of KES ${totalAmt}. Owes KES ${underpayAmount}.`,
                         "payment"
                     );
+                    refreshAll();
+                    return;
+                }
+            }
+
+            // Check for overpayment (customer pays more than required)
+            if (saleType === "dinein" && paidAmount !== undefined && paidAmount > totalAmt) {
+                const overpayAmount = paidAmount - totalAmt;
+                if (referenceName && referenceName.trim() !== "") {
+                    // Customer overpaid - record full sale and create negative debtor balance
+                    // Double-entry: Debit Cash/M-Pesa (amountPaid), Credit Sales Revenue (totalAmt)
+                    // Create negative debtor balance (we owe them)
+                    addTransaction(
+                        "sale",
+                        `Sale — ${paymentMethod === "mpesa" ? "M-Pesa" : "Cash"}`,
+                        itemsText,
+                        totalAmt,
+                        paymentMethod,
+                        referenceName,
+                        operant,
+                        lineItems,
+                    );
+                    addTransaction(
+                        "debtor_payment",
+                        `Customer Overpayment — ${referenceName}`,
+                        `Excess received on ${itemsText}`,
+                        overpayAmount,
+                        paymentMethod,
+                        referenceName,
+                        operant,
+                    );
+                    // Create negative debtor balance (we owe them)
+                    updateDebtor(referenceName, -overpayAmount, 0);
+                    addNotification(
+                        "Overpayment Recorded",
+                        `Customer ${referenceName} overpaid by KES ${overpayAmount}. We now owe them this amount.`,
+                        "payment"
+                    );
+                    refreshAll();
+                    return;
                 }
             }
 
             refreshAll();
         } catch (error) {
             console.error("Error recording sale:", error);
+            throw error;
         }
     };
 
@@ -414,11 +590,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const latestMeals = getMeals();
             items.forEach((item) => {
                 const currentMeal = latestMeals.find((m) => m.id === item.mealId);
+                if (!currentMeal) {
+                    throw new Error(`${item.name} no longer exists in inventory.`);
+                }
+                if (item.qty <= 0 || item.qty > currentMeal.stock) {
+                    throw new Error(`Cannot dispatch ${item.qty} ${item.name}. Available stock is ${currentMeal.stock}.`);
+                }
+            });
+
+            items.forEach((item) => {
+                const currentMeal = latestMeals.find((m) => m.id === item.mealId);
                 if (currentMeal) {
-                    updateMealStock(
-                        item.mealId,
-                        Math.max(0, currentMeal.stock - item.qty),
-                    );
+                    updateMealStock(item.mealId, currentMeal.stock - item.qty);
                 }
             });
             createTakeoutSession(staffName, items);
@@ -430,6 +613,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             refreshAll();
         } catch (error) {
             console.error("Error dispatching takeout:", error);
+            throw error;
         }
     };
 
@@ -444,6 +628,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 creditSold: number;
             }[];
             totalCash: number;
+            totalMpesa: number;
             globalDebtors: { name: string; amount: number }[];
         },
     ) => {
@@ -489,6 +674,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 );
             }
 
+            // Handle bulk M-Pesa sale
+            if (reconciliationData.totalMpesa > 0) {
+                addTransaction(
+                    "sale",
+                    `Takeout M-Pesa Sales — ${staffName}`,
+                    "Consolidated M-Pesa from outside catering",
+                    reconciliationData.totalMpesa,
+                    "mpesa",
+                    undefined,
+                    staffName,
+                );
+            }
+
             reconcileTakeoutSession(sessionId, JSON.stringify(reconciliationData));
             addNotification(
                 "Takeout Reconciled",
@@ -498,6 +696,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             refreshAll();
         } catch (error) {
             console.error("Error reconciling takeout:", error);
+            throw error;
         }
     };
 
@@ -509,6 +708,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         operant: string,
     ) => {
         try {
+            // Double-entry: Debit Expense, Credit Cash/M-Pesa
             addTransaction(
                 "expense",
                 `Expense — ${title}`,
@@ -521,10 +721,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
             refreshAll();
         } catch (error) {
             console.error("Error recording expense:", error);
+            throw error;
         }
     };
 
-    // ─── Record Purchase ────────────────────────────────────────────────────────
     const recordPurchase = (
         title: string,
         amount: number,
@@ -532,72 +732,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
         supplierName: string,
         operant: string,
         supplierPhone?: string,
-        paymentDifference?: number,
     ) => {
         try {
             const isCredited = paymentMethod === "credit";
-            addTransaction(
-                "purchase",
-                `${isCredited ? "Credited" : "Paid"} Purchase`,
-                title,
-                amount,
-                paymentMethod,
-                supplierName,
-                operant,
-            );
             if (isCredited) {
+                // Full credit purchase - record full amount to creditor
+                addTransaction(
+                    "purchase",
+                    "Credited Purchase",
+                    title,
+                    amount,
+                    "credit",
+                    supplierName,
+                    operant,
+                );
                 updateCreditor(supplierName, amount, 0, supplierPhone);
+            } else {
+                // Cash or M-Pesa purchase - record with actual payment method
+                addTransaction(
+                    "purchase",
+                    "Purchase",
+                    title,
+                    amount,
+                    paymentMethod,
+                    supplierName,
+                    operant,
+                );
             }
 
-            // Handle payment difference for creditor account
-            if (paymentDifference !== undefined && paymentDifference !== 0) {
-                if (paymentDifference < 0) {
-                    // Paid less than expected - business owes the difference (supplier becomes/remains creditor)
-                    updateCreditor(
-                        supplierName,
-                        Math.abs(paymentDifference),
-                        0,
-                        supplierPhone,
-                    );
-                } else if (paymentDifference > 0) {
-                    // Paid more than expected - supplier owes the difference (supplier becomes debtor)
-                    updateDebtor(supplierName, paymentDifference, 0, supplierPhone);
-                    addNotification(
-                        "Overpayment Recorded",
-                        `Overpaid supplier ${supplierName} by KES ${paymentDifference}. Added to debtors.`,
-                        "payment"
-                    );
-                }
-            }
-
-            // Auto-add to raw inventory
+            // Keep the raw inventory register in step with purchase records.
+            // Quantity-specific purchasing is not modeled yet, so each purchase
+            // entry increments or creates one tracked unit for the named item.
             const existingItems = getInventoryItems();
             const match = existingItems.find(
                 (item) => item.name.toLowerCase() === title.trim().toLowerCase(),
             );
             if (match) {
-                // Increment existing stock
                 updateInventoryStock(match.id, match.stockLevel + 1);
-                addNotification(
-                    "Stock Updated",
-                    `${match.name} stock incremented from purchase`,
-                    "stock",
-                );
             } else {
-                // Add new raw ingredient
                 addInventoryItem(title.trim(), 1, "units", amount);
-                addNotification(
-                    "New Stock Item",
-                    `${title.trim()} added to raw inventory from purchase`,
-                    "stock",
-                );
             }
-
             refreshAll();
         } catch (error) {
             console.error("Error recording purchase:", error);
+            throw error;
         }
-    };
+
+    }
 
     // ─── Record Debtor Payment ──────────────────────────────────────────────────
     const recordDebtorPayment = (
@@ -609,16 +790,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
         try {
             const existingDebtor = getDebtors().find(d => d.name === debtorName);
             let amountToClearDebtor = amount;
-            let overpayAmount = 0;
+
+            if (!existingDebtor) {
+                throw new Error(`${debtorName} does not have an active debtor account.`);
+            }
+
+            const debtorBalance = existingDebtor.totalOwed - existingDebtor.totalPaid;
+            if (debtorBalance <= 0) {
+                throw new Error(`${debtorName} does not owe money. Record a refund or adjustment instead.`);
+            }
 
             if (existingDebtor) {
-                const balance = existingDebtor.totalOwed - existingDebtor.totalPaid;
-                if (amount > balance) {
-                    overpayAmount = amount - balance;
-                    amountToClearDebtor = balance;
+                if (amount > debtorBalance) {
+                    // Overpayment - clear what's owed and create negative balance (we owe them)
+                    amountToClearDebtor = debtorBalance;
                 }
             }
 
+            // Double-entry: Debit Cash/M-Pesa, Credit Accounts Receivable
             addTransaction(
                 "debtor_payment",
                 `Debtor Payment — ${debtorName}`,
@@ -633,11 +822,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 updateDebtor(debtorName, 0, amountToClearDebtor);
             }
 
-            if (overpayAmount > 0) {
-                updateCreditor(debtorName, overpayAmount, 0, undefined);
+            // If overpaid, create negative debtor balance (we owe them)
+            if (amount > debtorBalance) {
+                const overpayAmount = amount - debtorBalance;
+                updateDebtor(debtorName, -overpayAmount, 0);
                 addNotification(
                     "Overpayment Recorded",
-                    `${debtorName} overpaid by KES ${overpayAmount}. Added to creditors.`,
+                    `${debtorName} overpaid by KES ${overpayAmount}. We now owe them this amount.`,
                     "payment"
                 );
             }
@@ -645,6 +836,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             refreshAll();
         } catch (error) {
             console.error("Error recording debtor payment:", error);
+            throw error;
         }
     };
 
@@ -657,37 +849,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ) => {
         try {
             const existingCreditor = getCreditors().find(c => c.name === creditorName);
-            let amountToClearCreditor = amount;
-            let overpayAmount = 0;
+            let amountPaidToCreditor = amount;
 
-            if (existingCreditor) {
-                const balance = existingCreditor.totalOwed - existingCreditor.totalPaid;
-                if (amount > balance) {
-                    overpayAmount = amount - balance;
-                    amountToClearCreditor = balance;
-                }
+            if (!existingCreditor) {
+                throw new Error(`${creditorName} does not have an active creditor account.`);
             }
 
+            const creditorBalance = existingCreditor.totalOwed - existingCreditor.totalPaid;
+
+            updateCreditor(creditorName, 0, amountPaidToCreditor);
             addTransaction(
                 "creditor_payment",
-                `Paid Creditor — ${creditorName}`,
-                `Creditor settlement via ${paymentMethod.toUpperCase()} · by ${operant}`,
+                creditorBalance > 0
+                    ? `Paid Creditor — ${creditorName}`
+                    : `Supplier Advance — ${creditorName}`,
+                creditorBalance > 0
+                    ? `Creditor settlement via ${paymentMethod.toUpperCase()} · by ${operant}`
+                    : `Supplier advance via ${paymentMethod.toUpperCase()} · by ${operant}`,
                 amount,
                 paymentMethod,
                 creditorName,
                 operant,
             );
 
-            if (amountToClearCreditor > 0) {
-                updateCreditor(creditorName, -amountToClearCreditor, 0);
-            }
-
-            if (overpayAmount > 0) {
-                // Creditor is overpaid, they become a debtor!
-                updateDebtor(creditorName, overpayAmount, 0, undefined);
+            if (amount > creditorBalance) {
+                const overpayAmount = amount - creditorBalance;
                 addNotification(
                     "Overpayment Recorded",
-                    `Overpaid supplier ${creditorName} by KES ${overpayAmount}. Added to debtors.`,
+                    `Overpaid supplier ${creditorName} by KES ${overpayAmount}. They now owe us this amount.`,
                     "payment"
                 );
             }
@@ -695,6 +884,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             refreshAll();
         } catch (error) {
             console.error("Error recording creditor payment:", error);
+            throw error;
         }
     };
 
@@ -786,23 +976,83 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
 
     // ─── Day Close ──────────────────────────────────────────────────────────────
-    const closeDay = (operant: string) => {
+    const closeDay = (operant: string, collector?: string) => {
         try {
             const today = new Date().toDateString();
-            const todayTx = transactions.filter(
+            // Read directly from SQLite at close time so immediate writes, such as
+            // collection handovers, cannot be missed by stale React state.
+            const todayTx = getTransactions().filter(
                 (t) => new Date(t.date).toDateString() === today,
             );
+
+            // Accounting principle: Expected Cash = Opening Balance + Cash Sales + Debtor Payments - Purchase Payments - Expenses - Creditor Payments - Collections
+            const cashSales = todayTx
+                .filter((t) => t.type === "sale" && t.paymentMethod === "cash")
+                .reduce((s, t) => s + t.amount, 0);
+            const mpesaSales = todayTx
+                .filter((t) => t.type === "sale" && t.paymentMethod === "mpesa")
+                .reduce((s, t) => s + t.amount, 0);
+
+            const debtorPayments = todayTx
+                .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "cash")
+                .reduce((s, t) => s + t.amount, 0);
+            const mpesaDebtorPayments = todayTx
+                .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "mpesa")
+                .reduce((s, t) => s + t.amount, 0);
+
+            const purchasePayments = todayTx
+                .filter((t) => t.type === "purchase" && t.paymentMethod === "cash")
+                .reduce((s, t) => s + t.amount, 0);
+            const mpesaPurchasePayments = todayTx
+                .filter((t) => t.type === "purchase" && t.paymentMethod === "mpesa")
+                .reduce((s, t) => s + t.amount, 0);
+
+            const expenses = todayTx
+                .filter((t) => t.type === "expense" && t.paymentMethod === "cash")
+                .reduce((s, t) => s + t.amount, 0);
+            const mpesaExpenses = todayTx
+                .filter((t) => t.type === "expense" && t.paymentMethod === "mpesa")
+                .reduce((s, t) => s + t.amount, 0);
+
+            const creditorPayments = todayTx
+                .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "cash")
+                .reduce((s, t) => s + t.amount, 0);
+            const mpesaCreditorPayments = todayTx
+                .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "mpesa")
+                .reduce((s, t) => s + t.amount, 0);
+
+            const collections = todayTx
+                .filter((t) => t.type === "collection" && t.paymentMethod === "cash")
+                .reduce((s, t) => s + t.amount, 0);
+            const mpesaCollections = todayTx
+                .filter((t) => t.type === "collection" && t.paymentMethod === "mpesa")
+                .reduce((s, t) => s + t.amount, 0);
+
             const totalSales = todayTx
                 .filter((t) => t.type === "sale")
                 .reduce((s, t) => s + t.amount, 0);
+
             const totalExpenses = todayTx
                 .filter((t) => t.type === "expense" || t.type === "purchase")
                 .reduce((s, t) => s + t.amount, 0);
-            const netBalance = openingBalance + totalSales - totalExpenses;
-            dbCloseDay(openingBalance, totalSales, totalExpenses, netBalance, operant);
+
+            // Opening balance should come from today's opening_balance transaction, not global setting
+            const openingBalanceToday = todayTx
+                .filter((t) => t.type === "opening_balance" && t.paymentMethod === "cash")
+                .reduce((s, t) => s + t.amount, 0);
+            const mpesaOpeningBalanceToday = todayTx
+                .filter((t) => t.type === "opening_balance" && t.paymentMethod === "mpesa")
+                .reduce((s, t) => s + t.amount, 0);
+
+            const expectedCash = openingBalanceToday + cashSales + debtorPayments - purchasePayments - expenses - creditorPayments - collections;
+            const expectedMpesa = mpesaOpeningBalanceToday + mpesaSales + mpesaDebtorPayments - mpesaPurchasePayments - mpesaExpenses - mpesaCreditorPayments - mpesaCollections;
+            const netBalance = expectedCash + expectedMpesa;
+
+            dbCloseDay(openingBalanceToday + mpesaOpeningBalanceToday, totalSales, totalExpenses, netBalance, operant, collector);
             refreshAll();
         } catch (error) {
             console.error("Error closing day:", error);
+            throw error;
         }
     };
 
@@ -818,6 +1068,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 businessName,
                 openingBalance,
                 setOpenBalance,
+                setOpeningBalanceWithLock,
+                hasOpeningBalanceToday,
                 meals,
                 transactions,
                 debtors,
@@ -839,6 +1091,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 recordPurchase,
                 recordDebtorPayment,
                 recordCreditorPayment,
+                recordCollection,
                 clearDebtorAccount,
                 addNewMeal,
                 updateMeal,

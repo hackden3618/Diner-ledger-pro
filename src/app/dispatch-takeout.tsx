@@ -70,9 +70,16 @@ export default function DispatchTakeoutScreen() {
       Alert.alert('Validation Error', 'Please add at least one item.');
       return;
     }
-    dispatchTakeout(staffName, selectedItems);
-    resetForm();
-    router.back();
+    try {
+      dispatchTakeout(staffName, selectedItems);
+      resetForm();
+      router.back();
+    } catch (error) {
+      Alert.alert(
+        'Dispatch Failed',
+        error instanceof Error ? error.message : 'The dispatch could not be recorded.',
+      );
+    }
   };
 
   const resetForm = () => {

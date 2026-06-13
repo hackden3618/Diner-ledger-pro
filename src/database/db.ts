@@ -51,11 +51,19 @@ export interface Transaction {
     | "consumed"
     | "returned"
     | "expense"
+    | "credited_purchase"
     | "purchase"
+    | "purchase_payment"
     | "debtor_payment"
     | "creditor_payment"
     | "day_close"
-    | "takeout_reconciliation";
+    | "takeout_reconciliation"
+    | "opening_balance"
+    | "collection"
+    | "adjustment"
+    | "refund"
+    | "debtor_creation"
+    | "creditor_creation";
     title: string;
     description: string;
     amount: number;
@@ -63,6 +71,10 @@ export interface Transaction {
     date: string;
     referenceName?: string;
     operant?: string; // Staff/operator who performed the transaction
+    createdBy?: string;
+    createdAt?: string;
+    updatedBy?: string;
+    updatedAt?: string;
 }
 
 export interface Debtor {
@@ -126,7 +138,11 @@ export function initDatabase() {
       paymentMethod TEXT,
       date TEXT,
       referenceName TEXT,
-      operant TEXT
+      operant TEXT,
+      createdBy TEXT,
+      createdAt TEXT,
+      updatedBy TEXT,
+      updatedAt TEXT
     );
 
     CREATE TABLE IF NOT EXISTS transaction_items (
@@ -184,13 +200,17 @@ export function initDatabase() {
     const safeAlter = (sql: string) => {
         try {
             db.execSync(sql);
-        } catch (_) {
+        } catch {
             /* column already exists */
         }
     };
     safeAlter("ALTER TABLE meals ADD COLUMN isAvailable INTEGER DEFAULT 1");
     safeAlter("ALTER TABLE transactions ADD COLUMN referenceName TEXT");
     safeAlter("ALTER TABLE transactions ADD COLUMN operant TEXT");
+    safeAlter("ALTER TABLE transactions ADD COLUMN createdBy TEXT");
+    safeAlter("ALTER TABLE transactions ADD COLUMN createdAt TEXT");
+    safeAlter("ALTER TABLE transactions ADD COLUMN updatedBy TEXT");
+    safeAlter("ALTER TABLE transactions ADD COLUMN updatedAt TEXT");
     safeAlter("ALTER TABLE debtors ADD COLUMN phone TEXT");
     safeAlter("ALTER TABLE creditors ADD COLUMN phone TEXT");
     safeAlter("ALTER TABLE inventory ADD COLUMN imageUri TEXT");
@@ -363,8 +383,8 @@ export function addTransaction(
     const date = new Date().toISOString();
 
     const result = db.runSync(
-        `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, referenceName, operant)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, referenceName, operant, createdBy, createdAt, updatedBy, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             type,
             title,
@@ -374,6 +394,10 @@ export function addTransaction(
             date,
             referenceName || null,
             operant || null,
+            operant || null,
+            date,
+            operant || null,
+            date,
         ],
     );
 
@@ -439,6 +463,92 @@ export function addTransaction(
     }
 }
 
+// ─── Collection ───────────────────────────────────────────────────────────────
+
+export function recordCollection(
+    amount: number,
+    collectorName: string,
+    staffHandingOver: string,
+    paymentMethod: "cash" | "mpesa" = "cash",
+) {
+    if (amount <= 0) return;
+    const date = new Date().toISOString();
+    const methodLabel = paymentMethod === "mpesa" ? "M-Pesa" : "Cash";
+    db.runSync(
+        `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, referenceName, operant, createdBy, createdAt, updatedBy, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+            "collection",
+            `${methodLabel} Collection`,
+            `${methodLabel} handed to collector ${collectorName}`,
+            amount,
+            paymentMethod,
+            date,
+            collectorName,
+            staffHandingOver,
+            staffHandingOver,
+            date,
+            staffHandingOver,
+            date,
+        ],
+    );
+    
+    addNotification(
+        `${methodLabel} Collected`,
+        `KES ${amount.toLocaleString()} ${methodLabel} handed to collector ${collectorName} by ${staffHandingOver}.`,
+        "payment",
+    );
+}
+
+// ─── Opening Balance ───────────────────────────────────────────────────────────
+
+export function hasOpeningBalanceToday(): boolean {
+    const today = new Date().toDateString();
+    const rows = db.getAllSync<{ date: string }>(
+        "SELECT date FROM transactions WHERE type = 'opening_balance'"
+    );
+    return rows.some((r) => new Date(r.date).toDateString() === today);
+}
+
+export function recordOpeningBalance(
+    amount: number,
+    operant: string,
+    paymentMethod: "cash" | "mpesa" = "cash",
+) {
+    if (amount <= 0) return;
+    const date = new Date().toISOString();
+    const methodLabel = paymentMethod === "mpesa" ? "M-Pesa" : "Cash";
+    db.runSync(
+        `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, referenceName, operant, createdBy, createdAt, updatedBy, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+            "opening_balance",
+            `${methodLabel} Opening Balance`,
+            `Daily ${methodLabel} opening balance entry`,
+            amount,
+            paymentMethod,
+            date,
+            null,
+            operant,
+            operant,
+            date,
+            operant,
+            date,
+        ],
+    );
+    
+    // Also update the setting for backward compatibility
+    if (paymentMethod === "cash") {
+        updateSetting("opening_balance", amount.toString());
+    }
+    
+    addNotification(
+        `${methodLabel} Opening Balance Recorded`,
+        `KES ${amount.toLocaleString()} ${methodLabel} opening balance recorded by ${operant}.`,
+        "general",
+    );
+}
+
 // ─── End-of-Day Close ─────────────────────────────────────────────────────────
 
 export function closeDay(
@@ -447,6 +557,7 @@ export function closeDay(
     totalExpenses: number,
     netBalance: number,
     operant: string,
+    collector?: string,
 ) {
     const date = new Date().toISOString();
     const dateLabel = new Date().toLocaleDateString("en-KE", {
@@ -455,20 +566,23 @@ export function closeDay(
         year: "numeric",
     });
 
+    const collectorText = collector ? ` | Cash collected by ${collector}` : "";
+
     db.runSync(
-        `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, operant)
-     VALUES ('day_close', 'Day Closed — B/F', ?, ?, 'none', ?, ?)`,
+        `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, referenceName, operant)
+     VALUES ('day_close', 'Day Closed — B/F', ?, ?, 'none', ?, ?, ?)`,
         [
-            `Opening Balance: KES ${openingBalance.toLocaleString()} | Total Sales: KES ${totalSales.toLocaleString()} | Total Expenses: KES ${totalExpenses.toLocaleString()}`,
+            `Opening Balance: KES ${openingBalance.toLocaleString()} | Total Sales: KES ${totalSales.toLocaleString()} | Total Expenses: KES ${totalExpenses.toLocaleString()}${collectorText}`,
             netBalance,
             date,
+            collector || null,
             operant,
         ],
     );
 
     addNotification(
         "Day Closed",
-        `${dateLabel} closed by ${operant}. Net Balance B/F: KES ${netBalance.toLocaleString()}`,
+        `${dateLabel} closed by ${operant}${collector ? `. Cash collected by ${collector}` : ""}. Net Balance B/F: KES ${netBalance.toLocaleString()}`,
         "day_close",
     );
 }
@@ -521,13 +635,76 @@ export function clearDebtor(id: number) {
         id,
     ]);
     if (debtor) {
-        db.runSync("DELETE FROM debtors WHERE id = ?", [id]);
+        const balance = debtor.totalOwed - debtor.totalPaid;
+
+        if (balance !== 0) {
+            // Do not delete historical debtor records. A manual clearance is an
+            // accounting correction, so it must leave an adjustment transaction.
+            addTransaction(
+                "adjustment",
+                `Debtor Adjustment — ${debtor.name}`,
+                `${balance > 0 ? "DEBTOR_WRITE_OFF" : "CUSTOMER_CREDIT_WRITE_OFF"}: Manual debtor clearance. Previous balance: KES ${balance.toLocaleString()}`,
+                Math.abs(balance),
+                "none",
+                debtor.name,
+                "System",
+            );
+
+            if (balance > 0) {
+                updateDebtor(debtor.name, 0, balance);
+            } else {
+                updateDebtor(debtor.name, Math.abs(balance), 0);
+            }
+        }
+
         addNotification(
-            "Debtor Account Removed",
-            `${debtor.name}'s account has been manually cleared from the ledger.`,
+            "Debtor Account Adjusted",
+            `${debtor.name}'s account has been manually cleared with an audit adjustment.`,
             "payment",
         );
     }
+}
+
+// ─── Balance Calculations from Transactions (Source of Truth) ───────────────
+
+export function calculateDebtorBalanceFromTransactions(debtorName: string): number {
+    const transactions = db.getAllSync<Transaction>(
+        "SELECT * FROM transactions WHERE referenceName = ? AND type IN ('sale', 'debtor_payment', 'adjustment')",
+        [debtorName]
+    );
+    
+    let balance = 0;
+    transactions.forEach(t => {
+        if (t.type === 'sale' && t.paymentMethod === 'credit') {
+            balance += t.amount; // Debtor owes us
+        } else if (t.type === 'debtor_payment') {
+            balance -= t.amount; // Debtor paid us
+        } else if (t.type === 'adjustment' && t.description.includes('DEBTOR_WRITE_OFF')) {
+            balance -= t.amount; // Manual write-off reduces receivable
+        } else if (t.type === 'adjustment' && t.description.includes('CUSTOMER_CREDIT_WRITE_OFF')) {
+            balance += t.amount; // Manual clearance reduces customer credit
+        }
+    });
+    
+    return balance;
+}
+
+export function calculateCreditorBalanceFromTransactions(creditorName: string): number {
+    const transactions = db.getAllSync<Transaction>(
+        "SELECT * FROM transactions WHERE referenceName = ? AND type IN ('credited_purchase', 'purchase', 'creditor_payment')",
+        [creditorName]
+    );
+    
+    let balance = 0;
+    transactions.forEach(t => {
+        if (t.type === 'credited_purchase' || (t.type === 'purchase' && t.paymentMethod === 'credit')) {
+            balance += t.amount; // We owe creditor
+        } else if (t.type === 'creditor_payment') {
+            balance -= t.amount; // We paid creditor
+        }
+    });
+    
+    return balance;
 }
 
 // ─── Creditors ────────────────────────────────────────────────────────────────
@@ -549,7 +726,7 @@ export function updateCreditor(
     );
 
     if (existing) {
-        const newOwed = Math.max(0, existing.totalOwed + amtOwedDelta);
+        const newOwed = existing.totalOwed + amtOwedDelta;
         const newPaid = existing.totalPaid + amtPaidDelta;
         db.runSync(
             "UPDATE creditors SET totalOwed = ?, totalPaid = ?, lastUpdated = ?, phone = COALESCE(?, phone) WHERE id = ?",

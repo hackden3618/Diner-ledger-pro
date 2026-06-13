@@ -50,13 +50,20 @@ export default function PaymentModal({
             return;
         }
 
-        if (type === "debtor") {
-            recordDebtorPayment(personName, amount, payMethod, operant.trim());
-        } else {
-            recordCreditorPayment(personName, amount, payMethod, operant.trim());
-        }
+        try {
+            if (type === "debtor") {
+                recordDebtorPayment(personName, amount, payMethod, operant.trim());
+            } else {
+                recordCreditorPayment(personName, amount, payMethod, operant.trim());
+            }
 
-        dismissRef.current?.();
+            dismissRef.current?.();
+        } catch (error) {
+            Alert.alert(
+                "Payment Failed",
+                error instanceof Error ? error.message : "The payment could not be recorded.",
+            );
+        }
     };
 
     const isDebtor = type === "debtor";
