@@ -1,5 +1,5 @@
 import { useApp } from "@/database/AppContext";
-import { buildCashLedger, buildTrialBalance, summarizeAccounting } from "@/utils/accounting";
+import { buildMoneyLedger, buildTrialBalance, summarizeAccounting } from "@/utils/accounting";
 import { generateLedgerPDF } from "@/utils/pdfGenerator";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
@@ -50,7 +50,7 @@ export default function LedgerScreen() {
         });
     }, [transactions, reportPeriod]);
 
-    const ledgerEntries = useMemo(() => buildCashLedger(filtered), [filtered]);
+    const ledgerEntries = useMemo(() => buildMoneyLedger(filtered), [filtered]);
     const summary = useMemo(
         () => summarizeAccounting(filtered, debtors, creditors),
         [filtered, debtors, creditors],
@@ -112,11 +112,11 @@ export default function LedgerScreen() {
                 </View>
             </ScrollView>
 
-            {/* Cashbook Summary */}
+            {/* Money Ledger Summary */}
             <View className="flex-row gap-2 px-4 py-2">
                 <View className="flex-1 bg-muted rounded-xl p-3 border border-border">
                     <Text className="text-[9px] text-muted-foreground uppercase tracking-widest">
-                        Cash In (Dr)
+                        Money In (Dr)
                     </Text>
                     <Text className="text-[15px] font-bold text-primary mt-0.5">
                         KES {summary.totalDebits.toLocaleString()}
@@ -124,7 +124,7 @@ export default function LedgerScreen() {
                 </View>
                 <View className="flex-1 bg-muted rounded-xl p-3 border border-border">
                     <Text className="text-[9px] text-muted-foreground uppercase tracking-widest">
-                        Cash Out (Cr)
+                        Money Out (Cr)
                     </Text>
                     <Text className="text-[15px] font-bold text-destructive mt-0.5">
                         KES {summary.totalCredits.toLocaleString()}
@@ -134,7 +134,7 @@ export default function LedgerScreen() {
             <View className="mx-4 mb-2 bg-primary/10 border border-primary/20 rounded-xl p-3">
                 <View className="flex-row justify-between items-center">
                     <Text className="text-[10px] text-muted-foreground uppercase tracking-widest">
-                        Closing Cash Balance
+                        Closing Money In Hand
                     </Text>
                     <Text
                         className={`text-[16px] font-bold ${summary.closingBalance >= 0 ? "text-primary" : "text-destructive"
@@ -145,6 +145,9 @@ export default function LedgerScreen() {
                 </View>
                 <Text className="text-[9px] text-muted-foreground mt-1">
                     Trial Balance Dr KES {trialDebitTotal.toLocaleString()} · Cr KES {trialCreditTotal.toLocaleString()}
+                </Text>
+                <Text className="text-[9px] text-muted-foreground mt-1">
+                    Cash KES {summary.cashBalance.toLocaleString()} · M-Pesa KES {summary.mpesaBalance.toLocaleString()}
                 </Text>
             </View>
 
