@@ -251,7 +251,7 @@ export default function RecordSaleScreen() {
                             <Text className="text-[11px] font-bold text-muted-foreground tracking-[1px] mb-2 uppercase">Description (Required)</Text>
                             <TextInput
                                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
-                                placeholder="Who consumed this and why?"
+                                placeholder="e.g Kanyiri, breakfast..."
                                 placeholderTextColor="var(--muted-dark)"
                                 value={consumedDescription}
                                 onChangeText={setConsumedDescription}
