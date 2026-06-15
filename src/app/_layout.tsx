@@ -16,7 +16,7 @@ export default function RootLayout() {
                 <AppProvider>
                     <CalculationsProvider>
                         <BottomSheetModalProvider>
-                            <StatusBar style="auto" />
+                            <StatusBar style="dark" />
                             <AppNotificationBridge />
                             <Stack screenOptions={{ headerShown: false }} />
                         </BottomSheetModalProvider>
