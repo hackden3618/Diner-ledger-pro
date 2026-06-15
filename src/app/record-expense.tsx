@@ -6,9 +6,12 @@ import { useRouter } from 'expo-router';
 import ScreenHeader from '@/components/ui/ScreenHeader';
 import ActionDropdown from '@/components/ui/ActionDropdown';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useCalculations } from '@/database/CalculationsContext';
+import InfoAlert from '@/components/ui/InfoAlert';
 
 export default function RecordExpenseScreen() {
     const { recordExpense, transactions } = useApp();
+    const { cashAvailableToday, mpesaAvailableToday, moneyInHouse } = useCalculations();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const bottomInset = Math.max(insets.bottom, 12);
@@ -41,6 +44,19 @@ export default function RecordExpenseScreen() {
             Alert.alert("Invalid Amount", "Amount must be a positive number.");
             return;
         }
+
+        if ((amountNum > cashAvailableToday) && paymentMethod === 'cash') {
+            Alert.alert("Invalid Request", "The cash you want to pay is more than what you registered in the system\
+                            \n\nIf you have extra cash, register it as a sale");
+            return;
+        }
+
+        if ((amountNum > mpesaAvailableToday) && paymentMethod === 'mpesa') {
+            Alert.alert("Invalid Request", "The mpesa amount you want to pay is more than what you registered in the system\
+                            \n\nIf you have extra money, register it as a sale");
+            return;
+        }
+
 
         try {
             recordExpense(expenseTitle.trim(), amountNum, paymentMethod, operant.trim());
@@ -121,6 +137,13 @@ export default function RecordExpenseScreen() {
                             </TouchableOpacity>
                         </View>
                     </View>
+                    <InfoAlert message={
+                        <Text>
+                            <Text className='text-warning block'>Cash Balance: <Text className='text-primary'>{(cashAvailableToday).toLocaleString()}</Text>{`\n`}</Text>
+                            <Text className='text-warning block'>M-Pesa Balance: <Text className='text-primary'>{(mpesaAvailableToday).toLocaleString()}</Text>{`\n`}</Text>
+                            <Text>If the balances can't pay for the items and you expend on credit, record a credit purchase.</Text>
+                        </Text>
+                    } />
 
                 </ScrollView>
             </KeyboardAvoidingView>

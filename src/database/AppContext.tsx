@@ -13,7 +13,6 @@ import {
     createTakeoutSession,
     Creditor,
     clearDebtor as dbClearDebtor,
-    closeDay as dbCloseDay,
     Debtor,
     getActiveTakeoutSessions,
     getCreditors,
@@ -177,9 +176,6 @@ interface AppContextType {
     ) => void;
     updateRawInventoryStock: (id: number, newStock: number) => void;
 
-    // Day Close
-    closeDay: (operant: string, collector?: string) => void;
-
     // Notifications
     clearAllNotifs: () => void;
 }
@@ -228,112 +224,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const savedName = getSetting("business_name");
         if (savedName) setBusinessName(savedName);
     };
-
-    // Auto Close Day Logic
-    useEffect(() => {
-        const checkAutoClose = () => {
-            const now = new Date();
-            const hours = now.getHours();
-            const minutes = now.getMinutes();
-
-            // Check if past 23:50
-            if (hours === 23 && minutes >= 50) {
-                const lastCloseSetting = getSetting("last_auto_close_date");
-                const todayStr = now.toDateString();
-
-                if (lastCloseSetting !== todayStr) {
-                    // Trigger close day
-                    try {
-                        const todayTx = getTransactions().filter(
-                            (t) => new Date(t.date).toDateString() === todayStr,
-                        );
-
-                        // Only auto-close if there were actually transactions today, or if we haven't closed yet
-                        const hasClosedToday = todayTx.some(t => t.type === 'day_close');
-
-                        if (!hasClosedToday) {
-                            // Use the same reconciliation formula as manual closeDay
-                            const cashSales = todayTx
-                                .filter((t) => t.type === "sale" && t.paymentMethod === "cash")
-                                .reduce((s, t) => s + t.amount, 0);
-                            const mpesaSales = todayTx
-                                .filter((t) => t.type === "sale" && t.paymentMethod === "mpesa")
-                                .reduce((s, t) => s + t.amount, 0);
-
-                            const debtorPayments = todayTx
-                                .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "cash")
-                                .reduce((s, t) => s + t.amount, 0);
-                            const mpesaDebtorPayments = todayTx
-                                .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "mpesa")
-                                .reduce((s, t) => s + t.amount, 0);
-
-                            const purchasePayments = todayTx
-                                .filter((t) => t.type === "purchase" && t.paymentMethod === "cash")
-                                .reduce((s, t) => s + t.amount, 0);
-                            const mpesaPurchasePayments = todayTx
-                                .filter((t) => t.type === "purchase" && t.paymentMethod === "mpesa")
-                                .reduce((s, t) => s + t.amount, 0);
-
-                            const expenses = todayTx
-                                .filter((t) => t.type === "expense" && t.paymentMethod === "cash")
-                                .reduce((s, t) => s + t.amount, 0);
-                            const mpesaExpenses = todayTx
-                                .filter((t) => t.type === "expense" && t.paymentMethod === "mpesa")
-                                .reduce((s, t) => s + t.amount, 0);
-
-                            const creditorPayments = todayTx
-                                .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "cash")
-                                .reduce((s, t) => s + t.amount, 0);
-                            const mpesaCreditorPayments = todayTx
-                                .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "mpesa")
-                                .reduce((s, t) => s + t.amount, 0);
-
-                            const collections = todayTx
-                                .filter((t) => t.type === "collection" && t.paymentMethod === "cash")
-                                .reduce((s, t) => s + t.amount, 0);
-                            const mpesaCollections = todayTx
-                                .filter((t) => t.type === "collection" && t.paymentMethod === "mpesa")
-                                .reduce((s, t) => s + t.amount, 0);
-
-                            const totalSales = todayTx
-                                .filter((t) => t.type === "sale")
-                                .reduce((s, t) => s + t.amount, 0);
-
-                            const totalExpenses = todayTx
-                                .filter((t) => t.type === "expense" || t.type === "purchase")
-                                .reduce((s, t) => s + t.amount, 0);
-
-                            // Opening balance should come from today's opening_balance transaction, not global setting
-                            const openingBalanceToday = todayTx
-                                .filter((t) => t.type === "opening_balance" && t.paymentMethod === "cash")
-                                .reduce((s, t) => s + t.amount, 0);
-                            const mpesaOpeningBalanceToday = todayTx
-                                .filter((t) => t.type === "opening_balance" && t.paymentMethod === "mpesa")
-                                .reduce((s, t) => s + t.amount, 0);
-
-                            const expectedCash = openingBalanceToday + cashSales + debtorPayments - purchasePayments - expenses - creditorPayments - collections;
-                            const expectedMpesa = mpesaOpeningBalanceToday + mpesaSales + mpesaDebtorPayments - mpesaPurchasePayments - mpesaExpenses - mpesaCreditorPayments - mpesaCollections;
-                            const netBalance = expectedCash + expectedMpesa;
-
-                            dbCloseDay(openingBalanceToday + mpesaOpeningBalanceToday, totalSales, totalExpenses, netBalance, "System (Auto)", undefined);
-                            updateSetting("last_auto_close_date", todayStr);
-                            refreshAll();
-                        } else {
-                            // Already closed manually, just mark the setting
-                            updateSetting("last_auto_close_date", todayStr);
-                        }
-                    } catch (error) {
-                        console.error("Auto close day failed", error);
-                    }
-                }
-            }
-        };
-
-        // Check immediately and then every minute
-        checkAutoClose();
-        const interval = setInterval(checkAutoClose, 60 * 1000);
-        return () => clearInterval(interval);
-    }, []);
 
     const saveBusinessName = (name: string) => {
         updateSetting("business_name", name);
@@ -974,88 +864,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         refreshAll();
     };
 
-
-    // ─── Day Close ──────────────────────────────────────────────────────────────
-    const closeDay = (operant: string, collector?: string) => {
-        try {
-            const today = new Date().toDateString();
-            // Read directly from SQLite at close time so immediate writes, such as
-            // collection handovers, cannot be missed by stale React state.
-            const todayTx = getTransactions().filter(
-                (t) => new Date(t.date).toDateString() === today,
-            );
-
-            // Accounting principle: Expected Cash = Opening Balance + Cash Sales + Debtor Payments - Purchase Payments - Expenses - Creditor Payments - Collections
-            const cashSales = todayTx
-                .filter((t) => t.type === "sale" && t.paymentMethod === "cash")
-                .reduce((s, t) => s + t.amount, 0);
-            const mpesaSales = todayTx
-                .filter((t) => t.type === "sale" && t.paymentMethod === "mpesa")
-                .reduce((s, t) => s + t.amount, 0);
-
-            const debtorPayments = todayTx
-                .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "cash")
-                .reduce((s, t) => s + t.amount, 0);
-            const mpesaDebtorPayments = todayTx
-                .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "mpesa")
-                .reduce((s, t) => s + t.amount, 0);
-
-            const purchasePayments = todayTx
-                .filter((t) => t.type === "purchase" && t.paymentMethod === "cash")
-                .reduce((s, t) => s + t.amount, 0);
-            const mpesaPurchasePayments = todayTx
-                .filter((t) => t.type === "purchase" && t.paymentMethod === "mpesa")
-                .reduce((s, t) => s + t.amount, 0);
-
-            const expenses = todayTx
-                .filter((t) => t.type === "expense" && t.paymentMethod === "cash")
-                .reduce((s, t) => s + t.amount, 0);
-            const mpesaExpenses = todayTx
-                .filter((t) => t.type === "expense" && t.paymentMethod === "mpesa")
-                .reduce((s, t) => s + t.amount, 0);
-
-            const creditorPayments = todayTx
-                .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "cash")
-                .reduce((s, t) => s + t.amount, 0);
-            const mpesaCreditorPayments = todayTx
-                .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "mpesa")
-                .reduce((s, t) => s + t.amount, 0);
-
-            const collections = todayTx
-                .filter((t) => t.type === "collection" && t.paymentMethod === "cash")
-                .reduce((s, t) => s + t.amount, 0);
-            const mpesaCollections = todayTx
-                .filter((t) => t.type === "collection" && t.paymentMethod === "mpesa")
-                .reduce((s, t) => s + t.amount, 0);
-
-            const totalSales = todayTx
-                .filter((t) => t.type === "sale")
-                .reduce((s, t) => s + t.amount, 0);
-
-            const totalExpenses = todayTx
-                .filter((t) => t.type === "expense" || t.type === "purchase")
-                .reduce((s, t) => s + t.amount, 0);
-
-            // Opening balance should come from today's opening_balance transaction, not global setting
-            const openingBalanceToday = todayTx
-                .filter((t) => t.type === "opening_balance" && t.paymentMethod === "cash")
-                .reduce((s, t) => s + t.amount, 0);
-            const mpesaOpeningBalanceToday = todayTx
-                .filter((t) => t.type === "opening_balance" && t.paymentMethod === "mpesa")
-                .reduce((s, t) => s + t.amount, 0);
-
-            const expectedCash = openingBalanceToday + cashSales + debtorPayments - purchasePayments - expenses - creditorPayments - collections;
-            const expectedMpesa = mpesaOpeningBalanceToday + mpesaSales + mpesaDebtorPayments - mpesaPurchasePayments - mpesaExpenses - mpesaCreditorPayments - mpesaCollections;
-            const netBalance = expectedCash + expectedMpesa;
-
-            dbCloseDay(openingBalanceToday + mpesaOpeningBalanceToday, totalSales, totalExpenses, netBalance, operant, collector);
-            refreshAll();
-        } catch (error) {
-            console.error("Error closing day:", error);
-            throw error;
-        }
-    };
-
     // ─── Notifications ──────────────────────────────────────────────────────────
     const clearAllNotifs = () => {
         markNotificationsAsRead();
@@ -1100,7 +908,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 addRawInventoryItem,
                 updateRawInventoryItem,
                 updateRawInventoryStock,
-                closeDay,
                 clearAllNotifs,
             }}
         >

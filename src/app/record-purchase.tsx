@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Alert, ScrollView } from 'react-native';
 import { useApp } from '@/database/AppContext';
+import { useCalculations } from '@/database/CalculationsContext';
 import { getSetting } from '@/database/db';
 import { useRouter } from 'expo-router';
 import ScreenHeader from '@/components/ui/ScreenHeader';
@@ -10,6 +11,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 export default function RecordPurchaseScreen() {
     const { recordPurchase, recordCreditorPayment, transactions, creditors } = useApp();
+    const { cashAvailableToday, mpesaAvailableToday, moneyInHouse } = useCalculations();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const bottomInset = Math.max(insets.bottom, 12);
@@ -26,7 +28,7 @@ export default function RecordPurchaseScreen() {
     const paidNum = parseFloat(paidAmount) || 0;
     const unpaidAmount = Math.max(0, expectedNum - paidNum);
     const overpaymentAmount = Math.max(0, paidNum - expectedNum);
-    
+
     // Get current creditor balance for selected supplier
     const currentCreditor = creditors.find(c => c.name === supplier);
     const currentCreditorBalance = currentCreditor ? (currentCreditor.totalOwed - currentCreditor.totalPaid) : 0;
@@ -50,8 +52,20 @@ export default function RecordPurchaseScreen() {
 
     const recordValidatedPurchase = (expectedNum: number, paidNum: number) => {
         const paymentDiff = paidNum - expectedNum;
+        if (paidNum > cashAvailableToday && paymentMethod === 'cash') {
+            Alert.alert("Invalid Request", "The cash you want to pay is more than what you registered in the system\
+                            \n\nIf you have extra cash, register it as a sale");
+            return;
+        }
+
+        if (paidNum > mpesaAvailableToday && paymentMethod === 'mpesa') {
+            Alert.alert("Invalid Request", "The mpesa amount you want to pay is more than what you registered in the system\
+                            \n\nIf you have extra money, register it as a sale");
+            return;
+        }
 
         try {
+
             if (paymentDiff === 0) {
                 // Full payment - record purchase with actual payment method
                 recordPurchase(
@@ -254,6 +268,8 @@ export default function RecordPurchaseScreen() {
 
                     <InfoAlert message={
                         <Text>
+                            <Text className='text-warning block'>Cash Balance: <Text className='text-primary'>{(cashAvailableToday).toLocaleString()}</Text>{`\n`}</Text>
+                            <Text className='text-warning block'>M-Pesa Balance: <Text className='text-primary'>{(mpesaAvailableToday).toLocaleString()}</Text>{`\n`}</Text>
                             Any <Text className="font-bold text-foreground">deficit</Text> creates a creditor balance. Any confirmed <Text className="font-bold text-primary">overpayment</Text> creates supplier credit.
                         </Text>
                     } />
@@ -265,7 +281,7 @@ export default function RecordPurchaseScreen() {
                                 className={`flex-1 py-4 items-center rounded-[10px] ${paymentMethod === 'cash' ? 'bg-card border border-border-strong shadow-sm' : ''}`}
                                 onPress={() => setPaymentMethod('cash')}
                             >
-                                <Text className={`text-[14px] font-medium ${paymentMethod === 'cash' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>💵 Cash</Text>
+                                <Text className={`text-[14px] font-medium ${paymentMethod === 'mpesa' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>💵 Cash</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 className={`flex-1 py-4 items-center rounded-[10px] ${paymentMethod === 'mpesa' ? 'bg-card border border-border-strong shadow-sm' : ''}`}

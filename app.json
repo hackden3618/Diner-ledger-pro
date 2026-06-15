@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Hotel_Inventory",
-    "slug": "Hotel_Inventory",
+    "name": "Diner Ledger",
+    "slug": "Diner_Ledger",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "hotelinventory",
+    "scheme": "dinerledger",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/images/icon.png"

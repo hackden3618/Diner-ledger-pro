@@ -13,7 +13,7 @@ type FloatingTabBarProps = {
 const tabs: { name: TabName; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { name: 'home', label: 'Home', icon: 'home-sharp' },
   { name: 'transactions', label: 'History', icon: 'list' },
-  { name: 'inventory', label: 'Stock', icon: 'grid' },
+  { name: 'inventory', label: 'Menu', icon: 'fast-food' },
   { name: 'debtors', label: 'Debts', icon: 'people' },
   { name: 'settings', label: 'Settings', icon: 'settings' },
 ];
@@ -55,6 +55,10 @@ const styles = StyleSheet.create({
   shell: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#dbe4dd',
+    borderRadius: 30,
+    position: "fixed",
+    bottom:30,
+    marginInline: 9,
     backgroundColor: '#fbfdfb',
     shadowColor: '#0f2015',
     shadowOffset: { width: 0, height: -2 },

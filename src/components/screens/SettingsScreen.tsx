@@ -1,4 +1,5 @@
 import { useApp } from "@/database/AppContext";
+import { useCalculations } from "@/database/CalculationsContext";
 import { getSetting, updateSetting, getMeals } from "@/database/db";
 import React, { useEffect, useState } from "react";
 import { Alert, Text, TextInput, TouchableOpacity, View, ScrollView, KeyboardAvoidingView } from "react-native";
@@ -30,14 +31,21 @@ export default function SettingsScreen() {
     const {
         businessName,
         saveBusinessName,
-        transactions,
-        closeDay,
         resetDatabase,
         refreshAll,
         setOpeningBalanceWithLock,
         hasOpeningBalanceToday,
         recordCollection,
     } = useApp();
+
+    const {
+        paidSalesToday,
+        openingBalanceToday,
+        cashAvailableToday,
+        mpesaAvailableToday,
+        moneyOutToday,
+        moneyInHouse,
+    } = useCalculations();
 
     const [tempBusinessName, setTempBusinessName] = useState(businessName);
     const [closeDayOperant, setCloseDayOperant] = useState("");
@@ -84,78 +92,6 @@ export default function SettingsScreen() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [businessName]);
 
-    // ─── Today's summary ─────────────────────────────────────────────────────────
-    const today = new Date().toDateString();
-    const todayTx = transactions.filter(
-        (t) => new Date(t.date).toDateString() === today,
-    );
-    // Opening balance should come from today's opening_balance transaction, not global setting
-    const openingCashToday = todayTx
-        .filter((t) => t.type === "opening_balance" && t.paymentMethod === "cash")
-        .reduce((sum, t) => sum + t.amount, 0);
-    const openingMpesaToday = todayTx
-        .filter((t) => t.type === "opening_balance" && t.paymentMethod === "mpesa")
-        .reduce((sum, t) => sum + t.amount, 0);
-    const openingBalanceToday = openingCashToday + openingMpesaToday;
-
-    const cashDebtorPaymentsToday = todayTx
-        .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "cash")
-        .reduce((sum, t) => sum + t.amount, 0);
-    const mpesaDebtorPaymentsToday = todayTx
-        .filter((t) => t.type === "debtor_payment" && t.paymentMethod === "mpesa")
-        .reduce((sum, t) => sum + t.amount, 0);
-
-    const cashPurchasePaymentsToday = todayTx
-        .filter((t) => t.type === "purchase" && t.paymentMethod === "cash")
-        .reduce((sum, t) => sum + t.amount, 0);
-    const mpesaPurchasePaymentsToday = todayTx
-        .filter((t) => t.type === "purchase" && t.paymentMethod === "mpesa")
-        .reduce((sum, t) => sum + t.amount, 0);
-
-    const cashExpensesToday = todayTx
-        .filter((t) => t.type === "expense" && t.paymentMethod === "cash")
-        .reduce((sum, t) => sum + t.amount, 0);
-    const mpesaExpensesToday = todayTx
-        .filter((t) => t.type === "expense" && t.paymentMethod === "mpesa")
-        .reduce((sum, t) => sum + t.amount, 0);
-
-    const cashSalesToday = todayTx
-        .filter((t) => t.type === "sale" && t.paymentMethod === "cash")
-        .reduce((sum, t) => sum + t.amount, 0);
-    const mpesaSalesToday = todayTx
-        .filter((t) => t.type === "sale" && t.paymentMethod === "mpesa")
-        .reduce((sum, t) => sum + t.amount, 0);
-
-    const cashCreditorPaymentsToday = todayTx
-        .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "cash")
-        .reduce((sum, t) => sum + t.amount, 0);
-    const mpesaCreditorPaymentsToday = todayTx
-        .filter((t) => t.type === "creditor_payment" && t.paymentMethod === "mpesa")
-        .reduce((sum, t) => sum + t.amount, 0);
-
-    const cashCollectionsToday = todayTx
-        .filter((t) => t.type === "collection" && t.paymentMethod === "cash")
-        .reduce((sum, t) => sum + t.amount, 0);
-    const mpesaCollectionsToday = todayTx
-        .filter((t) => t.type === "collection" && t.paymentMethod === "mpesa")
-        .reduce((sum, t) => sum + t.amount, 0);
-
-    const paidSalesToday = cashSalesToday + mpesaSalesToday;
-    const moneyOutToday =
-        cashPurchasePaymentsToday + mpesaPurchasePaymentsToday +
-        cashExpensesToday + mpesaExpensesToday +
-        cashCreditorPaymentsToday + mpesaCreditorPaymentsToday +
-        cashCollectionsToday + mpesaCollectionsToday;
-
-    const expectedCashInHouse =
-        openingCashToday + cashSalesToday + cashDebtorPaymentsToday -
-        cashPurchasePaymentsToday - cashExpensesToday - cashCreditorPaymentsToday - cashCollectionsToday;
-    const expectedMpesaInHouse =
-        openingMpesaToday + mpesaSalesToday + mpesaDebtorPaymentsToday -
-        mpesaPurchasePaymentsToday - mpesaExpensesToday - mpesaCreditorPaymentsToday - mpesaCollectionsToday;
-    const moneyInHouse = expectedCashInHouse + expectedMpesaInHouse;
-
-    // Global Debtors / Creditors
     // ─── Handlers ─────────────────────────────────────────────────────────────────
     const handleSaveBusinessName = () => {
         if (!tempBusinessName.trim()) {
@@ -261,13 +197,24 @@ export default function SettingsScreen() {
             Alert.alert("Collection Required", "Enter the actual cash or M-Pesa collected.");
             return;
         }
+        if (actualCash > cashAvailableToday) {
+            Alert.alert("Invalid Collection", "The cash amount you entered is greater than what the system registered.\
+                        \n\nThis action is rejected for proper book-keeping");
+            return;
+        }
 
-        const cashVariance = actualCash - expectedCashInHouse;
-        const mpesaVariance = actualMpesa - expectedMpesaInHouse;
+        if (actualMpesa > mpesaAvailableToday) {
+            Alert.alert("Invalid Collection", "The mpesa amount you entered is greater than what the system registered.\
+                        \n\nThis action is rejected for proper book-keeping");
+            return;
+        }
+
+        const cashVariance = actualCash - cashAvailableToday;
+        const mpesaVariance = actualMpesa - mpesaAvailableToday;
         if (!confirmedVariance && (Math.abs(cashVariance) > 0.01 || Math.abs(mpesaVariance) > 0.01)) {
             Alert.alert(
                 "Collection Variance",
-                `Expected Cash: ${fmt(expectedCashInHouse)}\nActual Cash: ${fmt(actualCash)}\nVariance: ${fmt(cashVariance)}\n\nExpected M-Pesa: ${fmt(expectedMpesaInHouse)}\nActual M-Pesa: ${fmt(actualMpesa)}\nVariance: ${fmt(mpesaVariance)}\n\nConfirm these are the amounts actually collected?`,
+                `Expected Cash: ${fmt(cashAvailableToday)}\nActual Cash: ${fmt(actualCash)}\nVariance: ${fmt(cashVariance)}\n\nExpected M-Pesa: ${fmt(mpesaAvailableToday)}\nActual M-Pesa: ${fmt(actualMpesa)}\nVariance: ${fmt(mpesaVariance)}\n\nConfirm these are the amounts actually collected?`,
                 [
                     { text: "Review", style: "cancel" },
                     {
@@ -282,7 +229,7 @@ export default function SettingsScreen() {
 
         Alert.alert(
             "Record Collection?",
-            `Cash expected: ${fmt(expectedCashInHouse)}\nCash collected: ${fmt(actualCash)}\n\nM-Pesa expected: ${fmt(expectedMpesaInHouse)}\nM-Pesa collected: ${fmt(actualMpesa)}\n\nThe day will close automatically after collection is recorded.`,
+            `Cash expected: ${fmt(cashAvailableToday)}\nCash collected: ${fmt(actualCash)}\n\nM-Pesa expected: ${fmt(mpesaAvailableToday)}\nM-Pesa collected: ${fmt(actualMpesa)}\n\nThe day will close automatically at midnight.`,
             [
                 { text: "Cancel", style: "cancel" },
                 {
@@ -298,7 +245,6 @@ export default function SettingsScreen() {
                                     closeDayOperant.trim(),
                                 );
                             }
-                            closeDay(closeDayOperant.trim(), collectorName.trim() || undefined);
                             setCloseDayOperant("");
                             setCollectorName("");
                             setCollectionCash("0");
@@ -306,7 +252,7 @@ export default function SettingsScreen() {
                             setLockOBInput(false);
                             Alert.alert(
                                 "Collection Recorded",
-                                `Collected by ${collectorName.trim()}.\nCash variance: ${fmt(cashVariance)}\nM-Pesa variance: ${fmt(mpesaVariance)}\n\nThe day has been closed automatically.`,
+                                `Collected by ${collectorName.trim()}.\nCash variance: ${fmt(cashVariance)}\nM-Pesa variance: ${fmt(mpesaVariance)}\n\nRe-Investment is plausible tomorrow when opening balance.`,
                             );
                         } catch (error) {
                             Alert.alert(
@@ -330,355 +276,355 @@ export default function SettingsScreen() {
                     showsVerticalScrollIndicator={false}
                 >
 
-                <View className="px-5 flex-1">
+                    <View className="px-5 flex-1">
 
-                    {/* ── Business Profile ─────────────────────────────────────────── */}
-                    <SectionHeader label="Business Profile" />
+                        {/* ── Business Profile ─────────────────────────────────────────── */}
+                        <SectionHeader label="Business Profile" />
 
-                    <FieldLabel label="Business / Hotel Name" />
-                    <TextInput
-                        className="bg-input border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5 mb-2.5"
-                        placeholder="Enter business name..."
-                        placeholderTextColor="#4a5e4c"
-                        value={tempBusinessName}
-                        onChangeText={setTempBusinessName}
-                    />
-                    <TouchableOpacity
-                        className="bg-input border-[0.5px] border-primary/30 rounded-[10px] py-3 items-center justify-center"
-                        onPress={handleSaveBusinessName}
-                    >
-                        <Text className="text-[12px] font-bold text-primary">
-                            Save Business Name
-                        </Text>
-                    </TouchableOpacity>
-
-                    {/* ── Financial Settings ────────────────────────────────────────── */}
-                    <SectionHeader label="Financial Settings" />
-
-                    <View className="flex-row gap-3 mb-2.5">
-                        <View className="flex-1">
-                            <FieldLabel label="Cash Seeded (KES)" />
-                            <TextInput
-                                className={`${lockOBInput ? 'bg-muted' : 'bg-input'} border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5`}
-                                placeholder="0.00"
-                                keyboardType="numeric"
-                                placeholderTextColor="#4a5e4c"
-                                value={openingCash}
-                                onChangeText={setOpeningCash}
-                                editable={!lockOBInput}
-                            />
-                        </View>
-                        <View className="flex-1">
-                            <FieldLabel label="M-Pesa Seeded (KES)" />
-                            <TextInput
-                                className={`${lockOBInput ? 'bg-muted' : 'bg-input'} border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5`}
-                                placeholder="0.00"
-                                keyboardType="numeric"
-                                placeholderTextColor="#4a5e4c"
-                                value={openingMpesa}
-                                onChangeText={setOpeningMpesa}
-                                editable={!lockOBInput}
-                            />
-                        </View>
-                    </View>
-
-                    {/* Seeder field — OPTIONAL*/}
-                    <View className="mb-4">
-                        <ActionDropdown
-                            label="CAPITAL PROVIDED BY — STAFF NAME (OPTIONAL)"
-                            value={seeder}
-                            onChange={setSeeder}
-                            options={staffOperants.split(',').map(s => s.trim()).filter(Boolean)}
-                            modalTitle="Select Capital Seeder"
+                        <FieldLabel label="Business / Hotel Name" />
+                        <TextInput
+                            className="bg-input border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5 mb-2.5"
+                            placeholder="Enter business name..."
+                            placeholderTextColor="#4a5e4c"
+                            value={tempBusinessName}
+                            onChangeText={setTempBusinessName}
                         />
-                    </View>
-
-                    <InfoAlert message={
-                        <Text>
-                            <Text className="text-warning font-bold">Note! </Text>
-                            Once the opening balance is saved, there is no more room for saving it for the day
-                            {obSeeder && <Text> (Seeded by {obSeeder})</Text>}
-                        </Text>}
-                    />
-                    <TouchableOpacity
-                        className="bg-input border-[0.5px] border-primary/30 rounded-[10px] py-3 items-center justify-center"
-                        onPress={handleSaveOpeningBalance}
-                    >
-                        <Text className="text-[12px] font-bold text-primary">
-                            {
-                                lockOBInput ?
-                                    "Input is currently locked" :
-                                    "Save Opening Balance"
-                            }
-                        </Text>
-                    </TouchableOpacity>
-
-                    {/* ── Staff / Operants ────────────────────────────────────────── */}
-                    <SectionHeader label="Staff / Operants" />
-
-                    <FieldLabel label="Staff Names (Comma Separated)" />
-                    <TextInput
-                        className="bg-input border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5 mb-2.5"
-                        placeholder="e.g. John, Jane"
-                        placeholderTextColor="#4a5e4c"
-                        value={staffOperants}
-                        onChangeText={setStaffOperants}
-                    />
-                    <TouchableOpacity
-                        className="bg-input border-[0.5px] border-primary/30 rounded-[10px] py-3 items-center justify-center"
-                        onPress={handleSaveStaff}
-                    >
-                        <Text className="text-[12px] font-bold text-primary">
-                            Save Staff Names
-                        </Text>
-                    </TouchableOpacity>
-
-                    {/* ── Suppliers ─────────────────────────────────────────────── */}
-                    <SectionHeader label="Suppliers" />
-
-                    <FieldLabel label="Known Suppliers (Comma Separated)" />
-                    <TextInput
-                        className="bg-input border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5 mb-2.5"
-                        placeholder="e.g. General, Milkman, Groceries"
-                        placeholderTextColor="#4a5e4c"
-                        value={suppliers}
-                        onChangeText={setSuppliers}
-                    />
-                    <TouchableOpacity
-                        className="bg-input border-[0.5px] border-primary/30 rounded-[10px] py-3 items-center justify-center"
-                        onPress={handleSaveSuppliers}
-                    >
-                        <Text className="text-[12px] font-bold text-primary">
-                            Save Suppliers
-                        </Text>
-                    </TouchableOpacity>
-
-                    {/* ── Menu Items Management ────────────────────────────────────── */}
-                    <SectionHeader label="Menu Items" />
-
-                    <View className="bg-input border-[0.5px] border-border-light rounded-[12px] p-3 mb-3">
-                        <Text className="text-[10px] text-primary mb-2">
-                            Active Menu Items
-                        </Text>
-                        {getMeals().length > 0 ? (
-                            getMeals().slice(0, 5).map((meal, idx) => (
-                                <View key={meal.id} className="flex-row justify-between items-center py-2 border-b border-border-light">
-                                    <View>
-                                        <Text className="text-[12px] text-foreground">{meal.name}</Text>
-                                        <Text className="text-[10px] text-info">KES {meal.price} • Stock: {meal.stock}</Text>
-                                    </View>
-                                    <View className={`w-2 h-2 rounded-full ${meal.isAvailable ? 'bg-primary' : 'bg-danger'}`} />
-                                </View>
-                            ))
-                        ) : (
-                            <Text className="text-[11px] italic">No menu items yet.</Text>
-                        )}
-                        {getMeals().length > 5 && (
-                            <Text className="text-[10px] text-primary mt-2">+ {getMeals().length - 5} more items...</Text>
-                        )}
-                    </View>
-
-                    <Text className="text-[10px] mb-2">
-                        Add new meals from the Inventory tab. Set items as available when prepared.
-                    </Text>
-
-                    {/* ── Collection / Auto Close ───────────────────────────────────── */}
-                    <SectionHeader label="Collection / Auto Close" />
-
-                    <InfoAlert message={
-                        <Text>
-                            Record the actual cash and M-Pesa handed over. The system shows expected amounts from {"today's"} transactions, then closes the day automatically after collection is saved.
-                        </Text>
-                    } />
-
-                    {/* Today's summary card */}
-                    <View className="bg-input border-[0.5px] border-border-light rounded-[14px] p-4 mb-4 gap-2">
-                        <Text className="text-[10px] font-bold text-foreground tracking-[0.8px] uppercase mb-1">
-                            {"Today's Summary"}
-                        </Text>
-                        <View className="flex-row justify-between pb-3">
-                            <Text className="text-[12px] text-foreground">
-                                {"Today's Opening Balance"}
-                            </Text>
-                            <Text className="text-[12px] font-bold text-primary">
-                                {fmt(openingBalanceToday)}
-                            </Text>
-                        </View>
-                        <View className="flex-row justify-between">
-                            <Text className="text-[12px] text-foreground">Cash Expected In-House</Text>
-                            <Text className="text-[12px] font-bold text-primary">{fmt(expectedCashInHouse)}</Text>
-                        </View>
-                        <View className="flex-row justify-between">
-                            <Text className="text-[12px] text-foreground">M-Pesa Expected In-House</Text>
-                            <Text className="text-[12px] font-bold text-info">{fmt(expectedMpesaInHouse)}</Text>
-                        </View>
-                        <View className="flex-row justify-between">
-                            <Text className="text-[12px] text-foreground">
-                                {"Today's Paid Sales"}
-                            </Text>
-                            <Text className="text-[12px] font-bold text-primary">
-                                {fmt(paidSalesToday)}
-                            </Text>
-                        </View>
-                        <View className="flex-row justify-between">
-                            <Text className="text-[12px] text-foreground">
-                                {"Today's Expenses"}
-                            </Text>
-                            <Text className="text-[12px] font-bold text-destructive">
-                                {fmt(moneyOutToday)}
-                            </Text>
-                        </View>
-                        <View className="h-[0.5px] bg-white/10 dark:bg-white/5 my-1" />
-                        <View className="flex-row justify-between">
-                            <Text className="text-[12px] text-foreground">
-                                Net Balance
-                            </Text>
-                            <Text
-                                className={`text-[13px] font-bold ${moneyInHouse >= 0 ? "text-primary" : "text-destructive"
-                                    }`}
-                            >
-                                {fmt(moneyInHouse)}
-                            </Text>
-                        </View>
-                    </View>
-
-                    {/* Operant field — REQUIRED */}
-                    <View className="mb-2">
-                        <ActionDropdown
-                            label="HANDED OVER BY — STAFF NAME"
-                            value={closeDayOperant}
-                            onChange={setCloseDayOperant}
-                            options={staffOperants.split(',').map(s => s.trim()).filter(Boolean)}
-                            modalTitle="Select Staff"
-                            isRequired
-                        />
-                    </View>
-
-                    {/* Collector field — REQUIRED */}
-                    <View className="mb-4">
-                        <ActionDropdown
-                            label="COLLECTED BY — STAFF NAME"
-                            value={collectorName}
-                            onChange={setCollectorName}
-                            options={staffOperants.split(',').map(s => s.trim()).filter(Boolean)}
-                            modalTitle="Select Collector"
-                            isRequired
-                        />
-                    </View>
-
-                    <View className="bg-input border-[0.5px] border-border-light rounded-[14px] p-4 mb-4 gap-3">
-                        <Text className="text-[10px] font-bold text-foreground tracking-[0.8px] uppercase">
-                            Actual Collection
-                        </Text>
-                        <View>
-                            <View className="flex-row justify-between mb-1.5">
-                                <Text className="text-[10px] font-bold text-foreground uppercase">Cash Collected</Text>
-                                <Text className="text-[10px] font-bold text-primary">Expected: {fmt(expectedCashInHouse)}</Text>
-                            </View>
-                            <TextInput
-                                className="bg-background border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5"
-                                placeholder="0.00"
-                                keyboardType="numeric"
-                                placeholderTextColor="#4a5e4c"
-                                value={collectionCash}
-                                onChangeText={setCollectionCash}
-                            />
-                        </View>
-                        <View>
-                            <View className="flex-row justify-between mb-1.5">
-                                <Text className="text-[10px] font-bold text-foreground uppercase">M-Pesa Collected</Text>
-                                <Text className="text-[10px] font-bold text-info">Expected: {fmt(expectedMpesaInHouse)}</Text>
-                            </View>
-                            <TextInput
-                                className="bg-background border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5"
-                                placeholder="0.00"
-                                keyboardType="numeric"
-                                placeholderTextColor="#4a5e4c"
-                                value={collectionMpesa}
-                                onChangeText={setCollectionMpesa}
-                            />
-                        </View>
-                    </View>
-
-                    <TouchableOpacity
-                        className="bg-primary rounded-[12px] py-4 items-center justify-center"
-                        onPress={() => handleRecordCollection()}
-                    >
-                        <Text className="text-[13px] font-bold text-primary-foreground">
-                            Record Collection
-                        </Text>
-                    </TouchableOpacity>
-
-                    <Text className="text-[10px] text-warning text-center mt-2 mb-6">
-                        {"Closing is automatic after collection is recorded. This cannot be undone."}
-                    </Text>
-
-                    {/* ── Danger Zone ───────────────────────────────────────── */}
-                    <SectionHeader label="Danger Zone" />
-
-                    {!showResetConfirm ? (
                         <TouchableOpacity
-                            className="bg-danger/10 border-[0.5px] border-danger/30 rounded-[12px] py-4 items-center justify-center mt-2"
-                            onPress={() => setShowResetConfirm(true)}
+                            className="bg-input border-[0.5px] border-primary/30 rounded-[10px] py-3 items-center justify-center"
+                            onPress={handleSaveBusinessName}
                         >
-                            <Text className="text-[13px] font-bold text-danger">
-                                ⚠ Reset Database
+                            <Text className="text-[12px] font-bold text-primary">
+                                Save Business Name
                             </Text>
                         </TouchableOpacity>
-                    ) : (
-                        <View className="bg-danger/5 border-[0.5px] border-danger/30 rounded-[14px] p-4 mt-2">
-                            <Text className="text-[11px] font-bold text-danger mb-2">
-                                Type the security password to confirm deletion of ALL data:
-                            </Text>
-                            <TextInput
-                                className="bg-input border-[0.5px] border-danger/40 rounded-[10px] text-foreground text-[13px] px-3 py-2.5 mb-3"
-                                placeholder="Enter password..."
-                                placeholderTextColor="#4a5e4c"
-                                secureTextEntry
-                                value={resetPassword}
-                                onChangeText={setResetPassword}
-                                autoCorrect={false}
-                            />
-                            <View className="flex-row gap-2">
-                                <TouchableOpacity
-                                    className="flex-1 bg-input border-[0.5px] border-border rounded-[10px] py-3 items-center"
-                                    onPress={() => {
-                                        setShowResetConfirm(false);
-                                        setResetPassword("");
-                                    }}
-                                >
-                                    <Text className="text-[12px] font-bold text-foreground">
-                                        Cancel
-                                    </Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    className="flex-1 bg-danger rounded-[10px] py-3 items-center"
-                                    onPress={() => {
-                                        if (resetPassword === "killalldata!") {
-                                            resetDatabase();
-                                            setShowResetConfirm(false);
-                                            setResetPassword("");
-                                            Alert.alert(
-                                                "Database Reset",
-                                                "All data has been wiped. Starting fresh.",
-                                            );
-                                        } else {
-                                            Alert.alert(
-                                                "Incorrect Password",
-                                                "The password you entered is wrong. Reset aborted.",
-                                            );
-                                            setResetPassword("");
-                                        }
-                                    }}
-                                >
-                                    <Text className="text-[12px] font-bold text-white">
-                                        Confirm Delete
-                                    </Text>
-                                </TouchableOpacity>
+
+                        {/* ── Financial Settings ────────────────────────────────────────── */}
+                        <SectionHeader label="Financial Settings" />
+
+                        <View className="flex-row gap-3 mb-2.5">
+                            <View className="flex-1">
+                                <FieldLabel label="Cash Seeded (KES)" />
+                                <TextInput
+                                    className={`${lockOBInput ? 'bg-muted' : 'bg-input'} border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5`}
+                                    placeholder="0.00"
+                                    keyboardType="numeric"
+                                    placeholderTextColor="#4a5e4c"
+                                    value={openingCash}
+                                    onChangeText={setOpeningCash}
+                                    editable={!lockOBInput}
+                                />
+                            </View>
+                            <View className="flex-1">
+                                <FieldLabel label="M-Pesa Seeded (KES)" />
+                                <TextInput
+                                    className={`${lockOBInput ? 'bg-muted' : 'bg-input'} border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5`}
+                                    placeholder="0.00"
+                                    keyboardType="numeric"
+                                    placeholderTextColor="#4a5e4c"
+                                    value={openingMpesa}
+                                    onChangeText={setOpeningMpesa}
+                                    editable={!lockOBInput}
+                                />
                             </View>
                         </View>
-                    )}
-                </View>
+
+                        {/* Seeder field — OPTIONAL*/}
+                        <View className="mb-4">
+                            <ActionDropdown
+                                label="CAPITAL PROVIDED BY — STAFF NAME (OPTIONAL)"
+                                value={seeder}
+                                onChange={setSeeder}
+                                options={staffOperants.split(',').map(s => s.trim()).filter(Boolean)}
+                                modalTitle="Select Capital Seeder"
+                            />
+                        </View>
+
+                        <InfoAlert message={
+                            <Text>
+                                <Text className="text-warning font-bold">Note! </Text>
+                                Once the opening balance is saved, there is no more room for saving it for the day
+                                {obSeeder && <Text> (Seeded by {obSeeder})</Text>}
+                            </Text>}
+                        />
+                        <TouchableOpacity
+                            className="bg-input border-[0.5px] border-primary/30 rounded-[10px] py-3 items-center justify-center"
+                            onPress={handleSaveOpeningBalance}
+                        >
+                            <Text className="text-[12px] font-bold text-primary">
+                                {
+                                    lockOBInput ?
+                                        "Input is currently locked" :
+                                        "Save Opening Balance"
+                                }
+                            </Text>
+                        </TouchableOpacity>
+
+                        {/* ── Staff / Operants ────────────────────────────────────────── */}
+                        <SectionHeader label="Staff / Operants" />
+
+                        <FieldLabel label="Staff Names (Comma Separated)" />
+                        <TextInput
+                            className="bg-input border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5 mb-2.5"
+                            placeholder="e.g. John, Jane"
+                            placeholderTextColor="#4a5e4c"
+                            value={staffOperants}
+                            onChangeText={setStaffOperants}
+                        />
+                        <TouchableOpacity
+                            className="bg-input border-[0.5px] border-primary/30 rounded-[10px] py-3 items-center justify-center"
+                            onPress={handleSaveStaff}
+                        >
+                            <Text className="text-[12px] font-bold text-primary">
+                                Save Staff Names
+                            </Text>
+                        </TouchableOpacity>
+
+                        {/* ── Suppliers ─────────────────────────────────────────────── */}
+                        <SectionHeader label="Suppliers" />
+
+                        <FieldLabel label="Known Suppliers (Comma Separated)" />
+                        <TextInput
+                            className="bg-input border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5 mb-2.5"
+                            placeholder="e.g. General, Milkman, Groceries"
+                            placeholderTextColor="#4a5e4c"
+                            value={suppliers}
+                            onChangeText={setSuppliers}
+                        />
+                        <TouchableOpacity
+                            className="bg-input border-[0.5px] border-primary/30 rounded-[10px] py-3 items-center justify-center"
+                            onPress={handleSaveSuppliers}
+                        >
+                            <Text className="text-[12px] font-bold text-primary">
+                                Save Suppliers
+                            </Text>
+                        </TouchableOpacity>
+
+                        {/* ── Menu Items Management ────────────────────────────────────── */}
+                        <SectionHeader label="Menu Items" />
+
+                        <View className="bg-input border-[0.5px] border-border-light rounded-[12px] p-3 mb-3">
+                            <Text className="text-[10px] text-primary mb-2">
+                                Active Menu Items
+                            </Text>
+                            {getMeals().length > 0 ? (
+                                getMeals().slice(0, 5).map((meal, idx) => (
+                                    <View key={meal.id} className="flex-row justify-between items-center py-2 border-b border-border-light">
+                                        <View>
+                                            <Text className="text-[12px] text-foreground">{meal.name}</Text>
+                                            <Text className="text-[10px] text-info">KES {meal.price} • Stock: {meal.stock}</Text>
+                                        </View>
+                                        <View className={`w-2 h-2 rounded-full ${meal.isAvailable ? 'bg-primary' : 'bg-danger'}`} />
+                                    </View>
+                                ))
+                            ) : (
+                                <Text className="text-[11px] italic">No menu items yet.</Text>
+                            )}
+                            {getMeals().length > 5 && (
+                                <Text className="text-[10px] text-primary mt-2">+ {getMeals().length - 5} more items...</Text>
+                            )}
+                        </View>
+
+                        <Text className="text-[10px] mb-2">
+                            Add new meals from the Inventory tab. Set items as available when prepared.
+                        </Text>
+
+                        {/* ── Collection / Auto Close ───────────────────────────────────── */}
+                        <SectionHeader label="Collection / Auto Close" />
+
+                        <InfoAlert message={
+                            <Text>
+                                Record the actual cash and M-Pesa handed over. The system shows expected amounts from {"today's"} transactions, then closes the day automatically after collection is saved.
+                            </Text>
+                        } />
+
+                        {/* Today's summary card */}
+                        <View className="bg-input border-[0.5px] border-border-light rounded-[14px] p-4 mb-4 gap-2">
+                            <Text className="text-[10px] font-bold text-foreground tracking-[0.8px] uppercase mb-1">
+                                {"Today's Summary"}
+                            </Text>
+                            <View className="flex-row justify-between pb-3">
+                                <Text className="text-[12px] text-foreground">
+                                    {"Today's Opening Balance"}
+                                </Text>
+                                <Text className="text-[12px] font-bold text-primary">
+                                    {fmt(openingBalanceToday)}
+                                </Text>
+                            </View>
+                            <View className="flex-row justify-between">
+                                <Text className="text-[12px] text-foreground">Cash Expected In-House</Text>
+                                <Text className="text-[12px] font-bold text-primary">{fmt(cashAvailableToday)}</Text>
+                            </View>
+                            <View className="flex-row justify-between">
+                                <Text className="text-[12px] text-foreground">M-Pesa Expected In-House</Text>
+                                <Text className="text-[12px] font-bold text-info">{fmt(cashAvailableToday)}</Text>
+                            </View>
+                            <View className="flex-row justify-between">
+                                <Text className="text-[12px] text-foreground">
+                                    {"Today's Paid Sales"}
+                                </Text>
+                                <Text className="text-[12px] font-bold text-primary">
+                                    {fmt(paidSalesToday)}
+                                </Text>
+                            </View>
+                            <View className="flex-row justify-between">
+                                <Text className="text-[12px] text-foreground">
+                                    {"Today's Expenses"}
+                                </Text>
+                                <Text className="text-[12px] font-bold text-destructive">
+                                    {fmt(moneyOutToday)}
+                                </Text>
+                            </View>
+                            <View className="h-[0.5px] bg-white/10 dark:bg-white/5 my-1" />
+                            <View className="flex-row justify-between">
+                                <Text className="text-[12px] text-foreground">
+                                    Net Balance
+                                </Text>
+                                <Text
+                                    className={`text-[13px] font-bold ${moneyInHouse >= 0 ? "text-primary" : "text-destructive"
+                                        }`}
+                                >
+                                    {fmt(moneyInHouse)}
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Operant field — REQUIRED */}
+                        <View className="mb-2">
+                            <ActionDropdown
+                                label="HANDED OVER BY — STAFF NAME"
+                                value={closeDayOperant}
+                                onChange={setCloseDayOperant}
+                                options={staffOperants.split(',').map(s => s.trim()).filter(Boolean)}
+                                modalTitle="Select Staff"
+                                isRequired
+                            />
+                        </View>
+
+                        {/* Collector field — REQUIRED */}
+                        <View className="mb-4">
+                            <ActionDropdown
+                                label="COLLECTED BY — STAFF NAME"
+                                value={collectorName}
+                                onChange={setCollectorName}
+                                options={staffOperants.split(',').map(s => s.trim()).filter(Boolean)}
+                                modalTitle="Select Collector"
+                                isRequired
+                            />
+                        </View>
+
+                        <View className="bg-input border-[0.5px] border-border-light rounded-[14px] p-4 mb-4 gap-3">
+                            <Text className="text-[10px] font-bold text-foreground tracking-[0.8px] uppercase">
+                                Actual Collection
+                            </Text>
+                            <View>
+                                <View className="flex-row justify-between mb-1.5">
+                                    <Text className="text-[10px] font-bold text-foreground uppercase">Cash Collected</Text>
+                                    <Text className="text-[10px] font-bold text-primary">Expected: {fmt(cashAvailableToday)}</Text>
+                                </View>
+                                <TextInput
+                                    className="bg-background border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5"
+                                    placeholder="0.00"
+                                    keyboardType="numeric"
+                                    placeholderTextColor="#4a5e4c"
+                                    value={collectionCash}
+                                    onChangeText={setCollectionCash}
+                                />
+                            </View>
+                            <View>
+                                <View className="flex-row justify-between mb-1.5">
+                                    <Text className="text-[10px] font-bold text-foreground uppercase">M-Pesa Collected</Text>
+                                    <Text className="text-[10px] font-bold text-info">Expected: {fmt(mpesaAvailableToday)}</Text>
+                                </View>
+                                <TextInput
+                                    className="bg-background border-[0.5px] border-border rounded-[10px] text-foreground text-[13px] px-3 py-2.5"
+                                    placeholder="0.00"
+                                    keyboardType="numeric"
+                                    placeholderTextColor="#4a5e4c"
+                                    value={collectionMpesa}
+                                    onChangeText={setCollectionMpesa}
+                                />
+                            </View>
+                        </View>
+
+                        <TouchableOpacity
+                            className="bg-primary rounded-[12px] py-4 items-center justify-center"
+                            onPress={() => handleRecordCollection()}
+                        >
+                            <Text className="text-[13px] font-bold text-primary-foreground">
+                                Record Collection
+                            </Text>
+                        </TouchableOpacity>
+
+                        <Text className="text-[10px] text-warning text-center mt-2 mb-6">
+                            {"Closing is automatic after collection is recorded. This cannot be undone."}
+                        </Text>
+
+                        {/* ── Danger Zone ───────────────────────────────────────── */}
+                        <SectionHeader label="Danger Zone" />
+
+                        {!showResetConfirm ? (
+                            <TouchableOpacity
+                                className="bg-danger/10 border-[0.5px] border-danger/30 rounded-[12px] py-4 items-center justify-center mt-2"
+                                onPress={() => setShowResetConfirm(true)}
+                            >
+                                <Text className="text-[13px] font-bold text-danger">
+                                    ⚠ Reset Database
+                                </Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <View className="bg-danger/5 border-[0.5px] border-danger/30 rounded-[14px] p-4 mt-2">
+                                <Text className="text-[11px] font-bold text-danger mb-2">
+                                    Type the security password to confirm deletion of ALL data:
+                                </Text>
+                                <TextInput
+                                    className="bg-input border-[0.5px] border-danger/40 rounded-[10px] text-foreground text-[13px] px-3 py-2.5 mb-3"
+                                    placeholder="Enter password..."
+                                    placeholderTextColor="#4a5e4c"
+                                    secureTextEntry
+                                    value={resetPassword}
+                                    onChangeText={setResetPassword}
+                                    autoCorrect={false}
+                                />
+                                <View className="flex-row gap-2">
+                                    <TouchableOpacity
+                                        className="flex-1 bg-input border-[0.5px] border-border rounded-[10px] py-3 items-center"
+                                        onPress={() => {
+                                            setShowResetConfirm(false);
+                                            setResetPassword("");
+                                        }}
+                                    >
+                                        <Text className="text-[12px] font-bold text-foreground">
+                                            Cancel
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        className="flex-1 bg-danger rounded-[10px] py-3 items-center"
+                                        onPress={() => {
+                                            if (resetPassword === "killalldata!") {
+                                                resetDatabase();
+                                                setShowResetConfirm(false);
+                                                setResetPassword("");
+                                                Alert.alert(
+                                                    "Database Reset",
+                                                    "All data has been wiped. Starting fresh.",
+                                                );
+                                            } else {
+                                                Alert.alert(
+                                                    "Incorrect Password",
+                                                    "The password you entered is wrong. Reset aborted.",
+                                                );
+                                                setResetPassword("");
+                                            }
+                                        }}
+                                    >
+                                        <Text className="text-[12px] font-bold text-white">
+                                            Confirm Delete
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        )}
+                    </View>
                 </ScrollView>
             </View>
         </KeyboardAvoidingView>
