@@ -1,5 +1,6 @@
 import AppBottomSheet from "@/components/ui/AppBottomSheet";
 import { useApp } from "@/database/AppContext";
+import { useCalculations } from "@/database/CalculationsContext";
 import { Ionicons } from "@expo/vector-icons";
 import { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import React, { useEffect, useRef, useState } from "react";
@@ -20,6 +21,7 @@ export default function PaymentModal({
     personName,
 }: PaymentModalProps) {
     const { recordDebtorPayment, recordCreditorPayment, transactions } = useApp();
+    const { cashAvailableToday, mpesaAvailableToday} = useCalculations();
 
     const [payAmount, setPayAmount] = useState("");
     const [payMethod, setPayMethod] = useState<"cash" | "mpesa">("cash");
@@ -47,6 +49,14 @@ export default function PaymentModal({
         const amount = parseFloat(payAmount);
         if (isNaN(amount) || amount <= 0) {
             Alert.alert("Invalid Amount", "Enter a valid positive amount.");
+            return;
+        }
+        if (amount > cashAvailableToday && type === "creditor" && payMethod === "cash"){
+            Alert.alert("Invalid Amount", "Amount entered is more than cash available.");
+            return;
+        }
+        if (amount > mpesaAvailableToday && type === "creditor" && payMethod === "mpesa"){
+            Alert.alert("Invalid Amount", "Amount entered is more than mpesa available.");
             return;
         }
 
