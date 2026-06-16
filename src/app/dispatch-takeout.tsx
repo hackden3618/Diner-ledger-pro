@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '@/database/AppContext';
 import { getSetting } from '@/database/db';
 import { useRouter } from 'expo-router';
+import { useKeyboard } from '@/hooks/useKeyboard';
 import ScreenHeader from '@/components/ui/ScreenHeader';
 import ActionDropdown from '@/components/ui/ActionDropdown';
 import InfoAlert from '@/components/ui/InfoAlert';
@@ -18,6 +19,7 @@ export default function DispatchTakeoutScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const bottomInset = Math.max(insets.bottom, 12);
+    const isKeyboardVisible = useKeyboard();
     const [staffName, setStaffName] = useState('');
     const [change, setChange] = useState("0");
     const [selectedItems, setSelectedItems] = useState<{ mealId: number; name: string; qty: number; price: number }[]>([]);
@@ -107,7 +109,7 @@ export default function DispatchTakeoutScreen() {
         <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
             <ScreenHeader title="Dispatch Takeout" subtitle="Assign goods for outside catering" />
             <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-                <ScrollView contentContainerStyle={{ paddingBottom: bottomInset + 16 }} keyboardShouldPersistTaps="handled">
+                <ScrollView contentContainerStyle={{ paddingBottom: bottomInset + 100 }} keyboardShouldPersistTaps="handled">
 
                     <View className="px-5 pt-4">
                         <InfoAlert message={
@@ -189,8 +191,11 @@ export default function DispatchTakeoutScreen() {
                     </View>
 
                 </ScrollView>
+            </KeyboardAvoidingView>
+            
+            {!isKeyboardVisible && (
                 <View
-                    className="flex-row gap-2 fixed bottom-8 px-5 pt-3 border-t-[0.5px] border-border bg-background"
+                    className="flex-row gap-2 absolute bottom-0 w-full px-5 pt-3 border-t-[0.5px] border-border bg-background"
                     style={{ paddingBottom: bottomInset }}
                 >
                     <View className="flex-1 bg-card rounded-[10px] justify-center px-4">
@@ -204,7 +209,7 @@ export default function DispatchTakeoutScreen() {
                         <Text className="text-[13px] font-bold text-background">Dispatch Session</Text>
                     </TouchableOpacity>
                 </View>
-            </KeyboardAvoidingView>
+            )}
         </SafeAreaView>
     );
 }

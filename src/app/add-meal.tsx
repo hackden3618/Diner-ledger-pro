@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Image, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Image, ScrollView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { useKeyboard } from '@/hooks/useKeyboard';
 import { useApp } from '@/database/AppContext';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import ScreenHeader from '@/components/ui/ScreenHeader';
@@ -10,10 +11,11 @@ import { SEEDED_MENU_IMAGES, isSeededMenuImageKey } from '@/utils/menuItemImages
 import { useCustomAlert } from "@/context/AlertContext";
 
 export default function AddMealScreen() {
-    const { showAlert } = useCustomAlert();
+  const { showAlert } = useCustomAlert();
   const { addNewMeal, updateMeal, deleteMeal, meals } = useApp();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
+  const isKeyboardVisible = useKeyboard();
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 12);
   
@@ -110,11 +112,11 @@ export default function AddMealScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
       <ScreenHeader title={editingMeal ? 'Edit Menu Item' : 'Add Menu Item'} />
       <KeyboardAvoidingView 
-        behavior="padding" 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
         <ScrollView 
-          contentContainerStyle={{ padding: 24, paddingBottom: bottomInset + 108 }} 
+          contentContainerStyle={{ padding: 24, paddingBottom: 120 }} 
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -217,30 +219,30 @@ export default function AddMealScreen() {
               </View>
             </View>
           </View>
-
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Floating Action Button area at bottom */}
-      <View
-        className="absolute bottom-0 w-full px-6 pt-4 bg-background border-t border-border-light flex-row gap-3"
-        style={{ paddingBottom: bottomInset }}
-      >
-        {editingMeal && (
-          <TouchableOpacity 
-            className="flex-1 bg-destructive/10 border border-destructive/30 rounded-[16px] py-4 items-center justify-center" 
-            onPress={handleDeleteMeal}
-          >
-            <Text className="text-[14px] font-bold text-destructive">Delete Meal</Text>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity 
-          className="flex-[2] bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm" 
-          onPress={handleAddMealSave}
+      {!isKeyboardVisible && (
+        <View
+          className="absolute bottom-0 w-full px-6 pt-4 bg-background border-t border-border-light flex-row gap-3"
+          style={{ paddingBottom: bottomInset }}
         >
-          <Text className="text-[16px] font-bold text-primary-foreground">{editingMeal ? 'Save Changes' : 'Create Meal'}</Text>
-        </TouchableOpacity>
-      </View>
+          {editingMeal && (
+            <TouchableOpacity 
+              className="flex-1 bg-destructive/10 border border-destructive/30 rounded-[16px] py-4 items-center justify-center" 
+              onPress={handleDeleteMeal}
+            >
+              <Text className="text-[14px] font-bold text-destructive">Delete Meal</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity 
+            className="flex-[2] bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm" 
+            onPress={handleAddMealSave}
+          >
+            <Text className="text-[16px] font-bold text-primary-foreground">{editingMeal ? 'Save Changes' : 'Create Meal'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

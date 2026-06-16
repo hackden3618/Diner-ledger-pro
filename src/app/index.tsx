@@ -15,6 +15,7 @@ import LoadingScreen from '@/components/ui/LoadingScreen';
 // Import UI
 import FloatingTabBar from '@/components/ui/FloatingTabBar';
 import { useRouter } from 'expo-router';
+import { useKeyboard } from '@/hooks/useKeyboard';
 
 type TabName = 'home' | 'transactions' | 'inventory' | 'debtors' | 'settings';
 
@@ -33,6 +34,7 @@ export default function Index() {
   const [selectedCreditorName, setSelectedCreditorName] = useState('');
 
   const [isReady, setIsReady] = useState(false);
+  const isKeyboardVisible = useKeyboard();
 
   useEffect(() => {
     import('@/database/db').then(({ getSetting }) => {
@@ -72,7 +74,9 @@ export default function Index() {
         {currentTab === 'settings' && <SettingsScreen />}
       </View>
 
-      <FloatingTabBar bottomInset={tabBarBottomInset} currentTab={currentTab} setCurrentTab={setCurrentTab} />
+      {!isKeyboardVisible && (
+        <FloatingTabBar bottomInset={tabBarBottomInset} currentTab={currentTab} setCurrentTab={setCurrentTab} />
+      )}
 
       {/* Component-Specific Modals */}
       {paymentModalVisible && <PaymentModal visible onClose={() => setPaymentModalVisible(false)} type="debtor" personName={selectedDebtorName} />}

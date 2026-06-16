@@ -7,6 +7,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import ScreenHeader from '@/components/ui/ScreenHeader';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCustomAlert } from "@/context/AlertContext";
+import { useKeyboard } from '@/hooks/useKeyboard';
 
 export default function AddInventoryScreen() {
     const { showAlert } = useCustomAlert();
@@ -15,6 +16,7 @@ export default function AddInventoryScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 12);
+  const isKeyboardVisible = useKeyboard();
   
   const editingItem = id ? inventoryItems.find(i => i.id === parseInt(id, 10)) : undefined;
 
@@ -152,17 +154,19 @@ export default function AddInventoryScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <View
-        className="absolute bottom-0 w-full px-6 bg-background border-t border-border-light pt-4"
-        style={{ paddingBottom: bottomInset }}
-      >
-        <TouchableOpacity 
-          className="w-full bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm" 
-          onPress={handleSave}
+      {!isKeyboardVisible && (
+        <View
+          className="absolute bottom-0 w-full px-6 bg-background border-t border-border-light pt-4"
+          style={{ paddingBottom: bottomInset }}
         >
-          <Text className="text-[16px] font-bold text-primary-foreground">{editingItem ? 'Save Changes' : 'Add Item'}</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity 
+            className="w-full bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm" 
+            onPress={handleSave}
+          >
+            <Text className="text-[16px] font-bold text-primary-foreground">{editingItem ? 'Save Changes' : 'Add Item'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

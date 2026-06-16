@@ -4,6 +4,7 @@ import { useApp } from '@/database/AppContext';
 import { useCalculations } from '@/database/CalculationsContext';
 import { getSetting } from '@/database/db';
 import { useRouter } from 'expo-router';
+import { useKeyboard } from '@/hooks/useKeyboard';
 import ScreenHeader from '@/components/ui/ScreenHeader';
 import ActionDropdown from '@/components/ui/ActionDropdown';
 import InfoAlert from '@/components/ui/InfoAlert';
@@ -17,6 +18,7 @@ export default function RecordPurchaseScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const bottomInset = Math.max(insets.bottom, 12);
+    const isKeyboardVisible = useKeyboard();
 
     const [operant, setOperant] = useState('');
     const [supplier, setSupplier] = useState('');
@@ -297,17 +299,19 @@ export default function RecordPurchaseScreen() {
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            <View
-                className="absolute bottom-0 w-full px-6 bg-background border-t border-border-light pt-4"
-                style={{ paddingBottom: bottomInset }}
-            >
-                <TouchableOpacity
-                    className="w-full bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm"
-                    onPress={handleSave}
+            {!isKeyboardVisible && (
+                <View
+                    className="absolute bottom-0 w-full px-6 bg-background border-t border-border-light pt-4"
+                    style={{ paddingBottom: bottomInset }}
                 >
-                    <Text className="text-[16px] font-bold text-primary-foreground">+ Add Purchase</Text>
-                </TouchableOpacity>
-            </View>
+                    <TouchableOpacity
+                        className="w-full bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm"
+                        onPress={handleSave}
+                    >
+                        <Text className="text-[16px] font-bold text-primary-foreground">+ Add Purchase</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
         </SafeAreaView>
     );
 }

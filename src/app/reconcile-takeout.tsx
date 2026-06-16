@@ -7,6 +7,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons";
 import { useCustomAlert } from "@/context/AlertContext";
 import InfoAlert from "@/components/ui/InfoAlert";
+import { useKeyboard } from "@/hooks/useKeyboard";
 
 export default function ReconcileTakeoutScreen() {
     const { showAlert } = useCustomAlert();
@@ -17,6 +18,7 @@ export default function ReconcileTakeoutScreen() {
     const { width } = useWindowDimensions();
     const bottomInset = Math.max(insets.bottom, 12);
     const isCompact = width < 380;
+    const isKeyboardVisible = useKeyboard();
 
     const [session, setSession] = useState<any>(null);
 
@@ -323,20 +325,22 @@ export default function ReconcileTakeoutScreen() {
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            <View
-                className="absolute bottom-0 w-full px-6 bg-background border-t border-border-light pt-4 shadow-lg"
-                style={{ paddingBottom: bottomInset }}
-            >
-                <TouchableOpacity
-                    className={`w-full rounded-[16px] py-4 items-center justify-center shadow-sm ${shortfall < 0 ? 'bg-muted opacity-50' : 'bg-primary'}`}
-                    onPress={handleSave}
-                    disabled={shortfall < 0}
+            {!isKeyboardVisible && (
+                <View
+                    className="absolute bottom-0 w-full px-6 bg-background border-t border-border-light pt-4 shadow-lg"
+                    style={{ paddingBottom: bottomInset }}
                 >
-                    <Text className={`text-[16px] font-bold ${shortfall < 0 ? 'text-muted-foreground' : 'text-primary-foreground'}`}>
-                        {shortfall < 0 ? 'Cannot Over-reconcile' : 'Finalize Reconciliation'}
-                    </Text>
-                </TouchableOpacity>
-            </View>
+                    <TouchableOpacity
+                        className={`w-full rounded-[16px] py-4 items-center justify-center shadow-sm ${shortfall < 0 ? 'bg-muted opacity-50' : 'bg-primary'}`}
+                        onPress={handleSave}
+                        disabled={shortfall < 0}
+                    >
+                        <Text className={`text-[16px] font-bold ${shortfall < 0 ? 'text-muted-foreground' : 'text-primary-foreground'}`}>
+                            {shortfall < 0 ? 'Cannot Over-reconcile' : 'Finalize Reconciliation'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            )}
         </SafeAreaView>
     );
 }

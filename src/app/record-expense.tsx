@@ -4,6 +4,7 @@ import { useApp } from '@/database/AppContext';
 import { getSetting } from '@/database/db';
 import { useRouter } from 'expo-router';
 import ScreenHeader from '@/components/ui/ScreenHeader';
+import { useKeyboard } from '@/hooks/useKeyboard';
 import ActionDropdown from '@/components/ui/ActionDropdown';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCalculations } from '@/database/CalculationsContext';
@@ -17,11 +18,13 @@ export default function RecordExpenseScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const bottomInset = Math.max(insets.bottom, 12);
+    const isKeyboardVisible = useKeyboard();
 
     const [operant, setOperant] = useState('');
     const [expenseTitle, setExpenseTitle] = useState('');
     const [amount, setAmount] = useState('');
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mpesa'>('cash');
+    const [operant, setOperant] = useState("");
 
     const savedStaff = getSetting("staff_operants");
     const staffMembers = savedStaff
@@ -150,17 +153,19 @@ export default function RecordExpenseScreen() {
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            <View
-                className="absolute bottom-0 w-full px-6 bg-background border-t border-border-light pt-4"
-                style={{ paddingBottom: bottomInset }}
-            >
-                <TouchableOpacity
-                    className="w-full bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm"
-                    onPress={handleSave}
+            {!isKeyboardVisible && (
+                <View
+                    className="absolute bottom-0 w-full px-6 bg-background border-t border-border-light pt-4"
+                    style={{ paddingBottom: bottomInset }}
                 >
-                    <Text className="text-[16px] font-bold text-primary-foreground">+ Add Expense</Text>
-                </TouchableOpacity>
-            </View>
+                    <TouchableOpacity
+                        className="w-full bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm"
+                        onPress={handleSave}
+                    >
+                        <Text className="text-[16px] font-bold text-primary-foreground">Save Expense</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
         </SafeAreaView>
     );
 }

@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, ScrollVi
 import { useApp } from '@/database/AppContext';
 import { getSetting } from '@/database/db';
 import { useRouter } from 'expo-router';
+import { useKeyboard } from '@/hooks/useKeyboard';
 import ScreenHeader from '@/components/ui/ScreenHeader';
 import ActionDropdown from '@/components/ui/ActionDropdown';
 import ProductImage from '@/components/ui/ProductImage';
@@ -16,6 +17,7 @@ export default function RecordSaleScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const bottomInset = Math.max(insets.bottom, 12);
+    const isKeyboardVisible = useKeyboard();
 
     const [operant, setOperant] = useState("");
     const [selectedSaleItems, setSelectedSaleItems] = useState<{ [mealId: number]: number }>({});
@@ -321,21 +323,23 @@ export default function RecordSaleScreen() {
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            <View
-                className="absolute bottom-0 w-full bg-background border-t border-border-light pt-4 px-6 shadow-lg"
-                style={{ paddingBottom: bottomInset }}
-            >
-                <View className="flex-row justify-between items-center mb-4 px-2">
-                    <Text className="text-[13px] text-muted-foreground uppercase tracking-[1px]">Total Due</Text>
-                    <Text className="text-[20px] font-bold text-primary">KES {runningTotal.toLocaleString()}</Text>
-                </View>
-                <TouchableOpacity
-                    className="w-full bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm"
-                    onPress={handleRecordSaleSave}
+            {!isKeyboardVisible && (
+                <View
+                    className="absolute bottom-0 w-full bg-background border-t border-border-light pt-4 px-6 shadow-lg"
+                    style={{ paddingBottom: bottomInset }}
                 >
-                    <Text className="text-[16px] font-bold text-primary-foreground">Save Transaction</Text>
-                </TouchableOpacity>
-            </View>
+                    <View className="flex-row justify-between items-center mb-4 px-2">
+                        <Text className="text-[13px] text-muted-foreground uppercase tracking-[1px]">Total Due</Text>
+                        <Text className="text-[20px] font-bold text-primary">KES {runningTotal.toLocaleString()}</Text>
+                    </View>
+                    <TouchableOpacity
+                        className="w-full bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm"
+                        onPress={handleRecordSaleSave}
+                    >
+                        <Text className="text-[16px] font-bold text-primary-foreground">Save Transaction</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
         </SafeAreaView>
     );
 }

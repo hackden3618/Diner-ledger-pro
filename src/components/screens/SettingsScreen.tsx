@@ -233,6 +233,9 @@ export default function SettingsScreen() {
                     style: "destructive",
                     onPress: () => {
                         try {
+                            const carriedCash = cashAvailableToday;
+                            const carriedMpesa = mpesaAvailableToday;
+
                             closeDay(
                                 openingBalanceToday,
                                 totalSalesToday,
@@ -242,7 +245,12 @@ export default function SettingsScreen() {
                                 undefined
                             );
                             closeBusinessDay();
-                            showAlert("Business Day Closed", "A new business day has officially started. Meal stocks have been reset to 0. \n\nPlease note: Any money left over for the new day should be explicitly entered via 'Inject Seed Money'.");
+                            
+                            if (carriedCash > 0 || carriedMpesa > 0) {
+                                injectSeedMoney(carriedCash, carriedMpesa, "Carried Over");
+                            }
+                            
+                            showAlert("Business Day Closed", "A new business day has officially started. Meal stocks have been reset to 0. Uncollected balances have been carried over to the new day.");
                         } catch (error) {
                             showAlert("Close Failed", error instanceof Error ? error.message : "Could not close business day.");
                         }
