@@ -48,6 +48,7 @@ import {
     updateMealStock,
     updateSetting,
     deleteMeal as dbDeleteMeal,
+    deleteAllNotifications,
 } from "./db";
 
 interface AppContextType {
@@ -182,7 +183,6 @@ interface AppContextType {
     updateRawInventoryStock: (id: number, newStock: number) => void;
 
     // Notifications
-    unreadNotifsCount: number;
     clearAllNotifs: () => void;
     deleteAllNotifs: () => void;
 }
@@ -576,10 +576,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     const deleteAllNotifs = () => {
-        import('./db').then(({ deleteAllNotifications }) => {
-            deleteAllNotifications();
-            refreshAll();
-        });
+        deleteAllNotifications();
+        refreshAll();
     };
 
     return (

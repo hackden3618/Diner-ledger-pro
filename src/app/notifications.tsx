@@ -1,6 +1,6 @@
 import { useApp } from "@/database/AppContext";
 import React from "react";
-import { Text, TouchableOpacity, View, FlatList } from "react-native";
+import { Text, TouchableOpacity, View, FlatList, Alert } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import ScreenHeader from "@/components/ui/ScreenHeader";
@@ -65,8 +65,24 @@ export default function NotificationsScreen() {
               <TouchableOpacity
                 className="flex-1 bg-destructive/10 border-[0.5px] border-destructive/30 rounded-[10px] py-4 items-center justify-center"
                 onPress={() => {
-                  deleteAllNotifs();
-                  router.back();
+                  Alert.alert(
+                    "Delete All Notifications",
+                    "Are you sure you want to permanently delete all notifications? This action cannot be undone.",
+                    [
+                      {
+                        text: "Cancel",
+                        style: "cancel"
+                      },
+                      {
+                        text: "Delete All",
+                        style: "destructive",
+                        onPress: () => {
+                          deleteAllNotifs();
+                          router.back();
+                        }
+                      }
+                    ]
+                  );
                 }}
               >
                 <Text className="text-[13px] font-bold text-destructive">

@@ -1,12 +1,18 @@
 import { Audio } from 'expo-av';
 
 // Configure audio to play even if the device is on silent mode
-Audio.setAudioModeAsync({
-    playsInSilentModeIOS: true,
-    staysActiveInBackground: false,
-    shouldDuckAndroid: true,
-    playThroughEarpieceAndroid: false,
-});
+(async () => {
+    try {
+        await Audio.setAudioModeAsync({
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: false,
+            shouldDuckAndroid: true,
+            playThroughEarpieceAndroid: false,
+        });
+    } catch (error) {
+        console.warn('Failed to set audio mode', error);
+    }
+})();
 
 export const playClickSound = async () => {
     try {
