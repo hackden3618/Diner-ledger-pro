@@ -201,7 +201,7 @@ export default function LedgerScreen() {
     );
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: 'var(--background)' }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
             <ScreenHeader title="Ledger & Trial Balance" subtitle={businessName} />
             <View className="flex-1 w-full bg-background">
                 <FlatList

@@ -107,7 +107,7 @@ export default function AddMealScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'var(--background)' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
       <ScreenHeader title={editingMeal ? 'Edit Menu Item' : 'Add Menu Item'} />
       <KeyboardAvoidingView 
         behavior="padding" 
@@ -123,7 +123,7 @@ export default function AddMealScreen() {
             <TextInput
               className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
               placeholder="e.g. Mandazi, Coffee..."
-              placeholderTextColor="var(--muted-dark)"
+              placeholderTextColor="#a1b0a3"
               value={newMealName}
               onChangeText={setNewMealName}
             />
@@ -136,7 +136,7 @@ export default function AddMealScreen() {
                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                 placeholder="0.00"
                 keyboardType="numeric"
-                placeholderTextColor="var(--muted-dark)"
+                placeholderTextColor="#a1b0a3"
                 value={newMealPrice}
                 onChangeText={setNewMealPrice}
               />
@@ -147,7 +147,7 @@ export default function AddMealScreen() {
                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                 placeholder="200"
                 keyboardType="numeric"
-                placeholderTextColor="var(--muted-dark)"
+                placeholderTextColor="#a1b0a3"
                 value={newMealStock}
                 onChangeText={setNewMealStock}
               />
@@ -160,7 +160,7 @@ export default function AddMealScreen() {
               className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
               placeholder="20"
               keyboardType="numeric"
-              placeholderTextColor="var(--muted-dark)"
+              placeholderTextColor="#a1b0a3"
               value={newMealAlert}
               onChangeText={setNewMealAlert}
             />
@@ -211,7 +211,7 @@ export default function AddMealScreen() {
                       resizeMode="cover"
                     />
                   ) : (
-                    <Ionicons name="camera-outline" size={24} color="var(--muted-dark)" />
+                    <Ionicons name="camera-outline" size={24} color="#a1b0a3" />
                   )}
                 </TouchableOpacity>
               </View>

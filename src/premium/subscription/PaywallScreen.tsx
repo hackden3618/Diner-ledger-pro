@@ -80,7 +80,7 @@ export default function PaywallScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "var(--background)" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f4f6f4" }}>
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView
           contentContainerStyle={{ padding: 22, paddingBottom: 40 }}
@@ -168,7 +168,7 @@ export default function PaywallScreen() {
             <TextInput
               className="bg-input border border-border rounded-[12px] px-4 py-3 text-foreground text-[14px] mb-3"
               placeholder="Phone e.g. 2547XXXXXXXX"
-              placeholderTextColor="var(--muted-dark)"
+              placeholderTextColor="#a1b0a3"
               keyboardType="phone-pad"
               value={phoneNumber}
               onChangeText={setPhoneNumber}

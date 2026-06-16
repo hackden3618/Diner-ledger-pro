@@ -19,7 +19,7 @@ export default function ScreenHeader({ title, subtitle, showBackButton = true }:
           className="w-10 h-10 rounded-full items-center justify-center bg-card border border-border"
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={20} color="var(--foreground)" />
+          <Ionicons name="arrow-back" size={20} color="#1a1c1a" />
         </TouchableOpacity>
       )}
       

@@ -13,7 +13,7 @@ import { useCustomAlert } from "@/context/AlertContext";
 export default function RecordPurchaseScreen() {
     const { showAlert } = useCustomAlert();
     const { recordPurchase, recordCreditorPayment, transactions, creditors } = useApp();
-    const { cashAvailableToday, mpesaAvailableToday, moneyInHouse } = useCalculations();
+    const { cashAvailableToday, mpesaAvailableToday } = useCalculations();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const bottomInset = Math.max(insets.bottom, 12);
@@ -168,7 +168,7 @@ export default function RecordPurchaseScreen() {
     };
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: 'var(--background)' }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
             <ScreenHeader title="Record Business Purchase" subtitle="Log goods bought for the business" />
             <KeyboardAvoidingView
                 behavior="padding"
@@ -206,7 +206,7 @@ export default function RecordPurchaseScreen() {
                         <TextInput
                             className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                             placeholder="e.g. Wheat Flour, charcoal..."
-                            placeholderTextColor="var(--muted-dark)"
+                            placeholderTextColor="#a1b0a3"
                             value={itemDescription}
                             onChangeText={setItemDescription}
                         />
@@ -219,7 +219,7 @@ export default function RecordPurchaseScreen() {
                                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                                 placeholder="0.00"
                                 keyboardType="numeric"
-                                placeholderTextColor="var(--muted-dark)"
+                                placeholderTextColor="#a1b0a3"
                                 value={expectedAmount}
                                 onChangeText={setExpectedAmount}
                             />
@@ -230,7 +230,7 @@ export default function RecordPurchaseScreen() {
                                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                                 placeholder="0.00"
                                 keyboardType="numeric"
-                                placeholderTextColor="var(--muted-dark)"
+                                placeholderTextColor="#a1b0a3"
                                 value={paidAmount}
                                 onChangeText={setPaidAmount}
                             />

@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useContext } from "react";
-
 import { useApp } from "./AppContext";
+import { getActiveBusinessDay } from "./db";
 
 interface CalculationsProviderType {
     cashInToday: number,
@@ -8,6 +8,7 @@ interface CalculationsProviderType {
     mpesaInToday: number,
     mpesaOutToday: number,
     expensesToday: number,
+    totalBusinessLossToday: number,
     purchasesToday: number,
     totalSalesToday: number,
     paidSalesToday: number,
@@ -25,6 +26,7 @@ interface CalculationsProviderType {
     activeDebtorsCount: number,
     totalCreditors: number,
     activeCreditorsCount: number,
+    cashBeforeChange: number,
 }
 
 
@@ -32,21 +34,18 @@ const CalculationsContext = createContext<CalculationsProviderType | undefined>(
 
 export function CalculationsProvider({ children }: { children: ReactNode }) {
     const { transactions, debtors, creditors } = useApp();
+    const activeBusinessDay = getActiveBusinessDay();
 
-    // Compute stats for current day
-    const todayTx = transactions.filter((t) => {
-        const txDate = new Date(t.date).toDateString();
-        const now = new Date().toDateString();
-
-        return txDate === now;
-    });
+    // Compute stats for current active business day
+    const todayTx = transactions.filter((t) => t.business_day_id === activeBusinessDay.id);
 
     const cashInToday = todayTx
         .filter(
             (t) =>
                 (t.type === "sale" && t.paymentMethod === "cash") ||
                 (t.type === "debtor_payment" && t.paymentMethod === "cash") ||
-                (t.type === "opening_balance" && t.paymentMethod === "cash")
+                (t.type === "opening_balance" && t.paymentMethod === "cash") ||
+                (t.type === "adjustment" && t.amount > 0 && t.paymentMethod === "cash")
         )
         .reduce((sum, t) => sum + t.amount, 0);
 
@@ -55,17 +54,20 @@ export function CalculationsProvider({ children }: { children: ReactNode }) {
             (t) =>
                 (t.type === "purchase" && t.paymentMethod === "cash") ||
                 (t.type === "expense" && t.paymentMethod === "cash") ||
+                (t.type === "business_loss" && t.paymentMethod === "cash") ||
                 (t.type === "creditor_payment" && t.paymentMethod === "cash") ||
-                (t.type === "collection" && t.paymentMethod === "cash")
+                (t.type === "collection" && t.paymentMethod === "cash") ||
+                (t.type === "adjustment" && t.amount < 0 && t.paymentMethod === "cash")
         )
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
     const mpesaInToday = todayTx
         .filter(
             (t) =>
                 (t.type === "sale" && t.paymentMethod === "mpesa") ||
                 (t.type === "debtor_payment" && t.paymentMethod === "mpesa") ||
-                (t.type === "opening_balance" && t.paymentMethod === "mpesa")
+                (t.type === "opening_balance" && t.paymentMethod === "mpesa") ||
+                (t.type === "adjustment" && t.amount > 0 && t.paymentMethod === "mpesa")
         )
         .reduce((sum, t) => sum + t.amount, 0);
 
@@ -74,18 +76,29 @@ export function CalculationsProvider({ children }: { children: ReactNode }) {
             (t) =>
                 (t.type === "purchase" && t.paymentMethod === "mpesa") ||
                 (t.type === "expense" && t.paymentMethod === "mpesa") ||
+                (t.type === "business_loss" && t.paymentMethod === "mpesa") ||
                 (t.type === "creditor_payment" && t.paymentMethod === "mpesa") ||
-                (t.type === "collection" && t.paymentMethod === "mpesa")
+                (t.type === "collection" && t.paymentMethod === "mpesa") ||
+                (t.type === "adjustment" && t.amount < 0 && t.paymentMethod === "mpesa")
         )
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
     const expensesToday = todayTx
-        .filter((t) => t.type === "expense" && (t.paymentMethod === "cash" || t.paymentMethod === "mpesa"))
+        .filter((t) => t.type === "expense")
+        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+    const totalBusinessLossToday = todayTx
+        .filter((t) => t.type === "business_loss")
+        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+    // Non-cash adjustments (like creditor write-offs which are gains)
+    const nonCashGainsToday = todayTx
+        .filter((t) => t.type === "adjustment" && t.amount > 0 && t.paymentMethod === "none")
         .reduce((sum, t) => sum + t.amount, 0);
 
     const purchasesToday = todayTx
         .filter((t) => t.type === "purchase")
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
     const totalSalesToday = todayTx
         .filter((t) => t.type === "sale")
@@ -95,7 +108,6 @@ export function CalculationsProvider({ children }: { children: ReactNode }) {
         .filter((t) => t.type === "sale" && (t.paymentMethod === "cash" || t.paymentMethod === "mpesa"))
         .reduce((sum, t) => sum + t.amount, 0);
 
-    // Opening balance should come from today's opening_balance transaction, not global setting
     const cashOpeningBalanceToday = todayTx
         .filter((t) => t.type === "opening_balance" && t.paymentMethod === "cash")
         .reduce((s, t) => s + t.amount, 0);
@@ -104,13 +116,13 @@ export function CalculationsProvider({ children }: { children: ReactNode }) {
         .reduce((s, t) => s + t.amount, 0);
 
     const grossProfitToday = totalSalesToday - purchasesToday;
-    const netProfitToday = grossProfitToday - expensesToday;
+    const netProfitToday = grossProfitToday - expensesToday - totalBusinessLossToday + nonCashGainsToday;
 
     const openingBalanceToday = cashOpeningBalanceToday + mpesaOpeningBalanceToday;
 
-    const cashAvailableToday = cashInToday - cashOutToday
-    const mpesaAvailableToday = mpesaInToday - mpesaOutToday
-
+    const cashAvailableToday = cashInToday - cashOutToday;
+    const cashBeforeChange = cashAvailableToday; // Backwards compatibility for UI
+    const mpesaAvailableToday = mpesaInToday - mpesaOutToday;
 
     const moneyInToday = cashInToday + mpesaInToday;
     const moneyOutToday = cashOutToday + mpesaOutToday;
@@ -132,6 +144,7 @@ export function CalculationsProvider({ children }: { children: ReactNode }) {
                 mpesaInToday,
                 mpesaOutToday,
                 expensesToday,
+                totalBusinessLossToday,
                 purchasesToday,
                 totalSalesToday,
                 paidSalesToday,
@@ -149,6 +162,7 @@ export function CalculationsProvider({ children }: { children: ReactNode }) {
                 activeDebtorsCount,
                 totalCreditors,
                 activeCreditorsCount,
+                cashBeforeChange,
             }}
         >
             {children}

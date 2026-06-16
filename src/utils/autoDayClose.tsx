@@ -1,78 +1,55 @@
-import { useEffect } from "react";
-import { getSetting, updateSetting, closeDay as dbCloseDay, getTransactions } from "@/database/db";
+import { useEffect, useState } from "react";
+import { getSetting, updateSetting } from "@/database/db";
 import { useApp } from "@/database/AppContext";
-import { useCalculations } from "@/database/CalculationsContext";
+import { useCustomAlert } from "@/context/AlertContext";
+import * as Notifications from "expo-notifications";
 
 export function useAutoDayClose() {
-    const { refreshAll, recordCollection } = useApp();
+    const { activeBusinessDay } = useApp();
+    const { showAlert } = useCustomAlert();
+    const [hasChecked, setHasChecked] = useState(false);
 
-    const {
-        mpesaAvailableToday,
-        openingBalanceToday,
-        cashAvailableToday,
-        moneyInHouse,
-        totalSalesToday,
-        expensesToday,
-    } = useCalculations();
-
-    // Auto Close Day Logic
     useEffect(() => {
-        const checkAutoClose = () => {
-            const now = new Date();
-            const hours = now.getHours();
-            const minutes = now.getMinutes();
+        if (hasChecked || !activeBusinessDay) return;
 
-            // Check if past 23:50
-            if (hours === 23 && minutes >= 50) {
-                const lastCloseSetting = getSetting("last_auto_close_date");
-                const todayStr = now.toDateString();
+        const checkForgottenClose = async () => {
+            setHasChecked(true);
+            const activeStartStr = new Date(activeBusinessDay.startTime).toDateString();
+            const todayStr = new Date().toDateString();
 
-                if (lastCloseSetting !== todayStr) {
-                    // Trigger close day
+            if (activeStartStr !== todayStr) {
+                // The active business day started on a previous literal day
+                const lastPrompted = getSetting("last_forgotten_close_prompt");
+                
+                if (lastPrompted !== todayStr) {
+                    updateSetting("last_forgotten_close_prompt", todayStr);
+                    
+                    // Show in-app alert
+                    showAlert(
+                        "Business Day Open",
+                        `You did not close the previous business day (${activeStartStr}). Please review and close it from Settings to keep your records accurate.`,
+                        [
+                            { text: "Dismiss", style: "cancel" },
+                        ]
+                    );
+
+                    // Push a local notification
                     try {
-                        const todayTx = getTransactions().filter(
-                            (t) => new Date(t.date).toDateString() === todayStr,
-                        );
-
-                        // Only auto-close if there were actually transactions today, or if we haven't closed yet
-                        const hasClosedToday = todayTx.some(t => t.type === 'day_close');
-
-                        if (!hasClosedToday) {
-
-                            dbCloseDay(openingBalanceToday, totalSalesToday, expensesToday, moneyInHouse, "System (Auto)", undefined);
-                            if (moneyInHouse > 0) {
-                                recordCollection(
-                                    cashAvailableToday,
-                                    mpesaAvailableToday,
-                                    "management",
-                                    "System (Auto)"
-                                );
-                            }
-                            updateSetting("last_auto_close_date", todayStr);
-                            refreshAll();
-                        } else {
-                            // Already closed manually, just mark the setting
-                            updateSetting("last_auto_close_date", todayStr);
-                        }
-                    } catch (error) {
-                        console.error("Auto close day failed", error);
+                        await Notifications.scheduleNotificationAsync({
+                            content: {
+                                title: "Business Day Not Closed",
+                                body: "You forgot to close the previous business day. Please review and close it.",
+                                sound: true,
+                            },
+                            trigger: null, // immediate
+                        });
+                    } catch (e) {
+                        console.warn("Failed to schedule notification", e);
                     }
                 }
             }
         };
 
-        // Check immediately and then every minute
-        checkAutoClose();
-        const interval = setInterval(checkAutoClose, 60 * 1000);
-        return () => clearInterval(interval);
-    }, [
-        mpesaAvailableToday,
-        openingBalanceToday,
-        cashAvailableToday,
-        moneyInHouse,
-        totalSalesToday,
-        expensesToday,
-        refreshAll,
-        recordCollection
-    ]);
+        checkForgottenClose();
+    }, [activeBusinessDay, hasChecked, showAlert]);
 }

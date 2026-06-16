@@ -2,15 +2,18 @@ import { Creditor, Debtor, Transaction } from "@/database/db";
 import { buildMoneyLedger, buildTrialBalance, summarizeAccounting } from "../accounting";
 
 const tx = (
-  overrides: Partial<Transaction>,
+  overrides?: Partial<Transaction>,
 ): Transaction => ({
   id: 1,
+  business_day_id: 1,
   type: "sale",
-  title: "Test Transaction",
-  description: "Test",
-  amount: 0,
+  title: "Test Sale",
+  description: "Test Description",
+  amount: 1000,
   paymentMethod: "cash",
-  date: "2026-01-01T08:00:00.000Z",
+  date: "2024-03-20T10:00:00.000Z",
+  createdBy: "Admin",
+  createdAt: "2024-03-20T10:00:00.000Z",
   ...overrides,
 });
 

@@ -29,7 +29,7 @@ function addDays(date: Date, days: number) {
 }
 
 function readRawState(): Omit<SubscriptionState, "status"> {
-  initDatabase();
+
 
   return {
     trialStartedAt: getSetting(KEYS.trialStartedAt) || undefined,
@@ -64,7 +64,7 @@ export function getSubscriptionState(now = new Date()): SubscriptionState {
 }
 
 export function startTrial(now = new Date()): SubscriptionState {
-  initDatabase();
+
 
   if (getSetting(KEYS.trialStartedAt)) {
     return getSubscriptionState(now);
@@ -78,7 +78,7 @@ export function startTrial(now = new Date()): SubscriptionState {
 }
 
 export function rememberCheckoutReference(reference: string) {
-  initDatabase();
+
   updateSetting(KEYS.lastCheckoutReference, reference);
 }
 
@@ -87,7 +87,7 @@ export function activateVerifiedSubscription(
   receiptReference: string,
   now = new Date(),
 ): SubscriptionState {
-  initDatabase();
+
   const plan = getPlan(planId);
   updateSetting(KEYS.planId, planId);
   updateSetting(KEYS.lastCheckoutReference, receiptReference);

@@ -50,7 +50,7 @@ export default function Index() {
   }
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: 'var(--background)' }}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
 
       {/* CORE VIEWPORT */}
       <View className="flex-1 px-4 pt-2">

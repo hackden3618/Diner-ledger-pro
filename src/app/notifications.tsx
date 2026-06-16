@@ -12,7 +12,7 @@ export default function NotificationsScreen() {
   const bottomInset = Math.max(insets.bottom, 12);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'var(--background)' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
       <ScreenHeader title="System Notifications" subtitle="Alerts and messages" />
       <View className="flex-1 w-full px-4 pt-4 bg-background" style={{ paddingBottom: bottomInset }}>
         <FlatList

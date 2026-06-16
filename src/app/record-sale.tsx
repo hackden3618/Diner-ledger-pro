@@ -131,7 +131,7 @@ export default function RecordSaleScreen() {
     };
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: 'var(--background)' }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
             <ScreenHeader title="Record Transaction" subtitle="Log sales, credit, takeaway, or internal consumption" />
             <KeyboardAvoidingView
                 behavior="padding"
@@ -194,7 +194,7 @@ export default function RecordSaleScreen() {
                                                 value={currentQty > 0 ? currentQty.toString() : ""}
                                                 onChangeText={(text) => handleSetQuantity(meal.id, meal.stock, text)}
                                                 placeholder="0"
-                                                placeholderTextColor="var(--muted-dark)"
+                                                placeholderTextColor="#a1b0a3"
                                             />
                                             <TouchableOpacity
                                                 className={`w-[32px] h-[32px] rounded-[8px] items-center justify-center ${atMax ? 'bg-muted opacity-50' : 'bg-primary shadow-sm'}`}
@@ -238,7 +238,7 @@ export default function RecordSaleScreen() {
                             <TextInput
                                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                                 placeholder="Enter customer name..."
-                                placeholderTextColor="var(--muted-dark)"
+                                placeholderTextColor="#a1b0a3"
                                 value={saleReferenceName}
                                 onChangeText={setSaleReferenceName}
                                 autoCapitalize="words"
@@ -254,7 +254,7 @@ export default function RecordSaleScreen() {
                             <TextInput
                                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                                 placeholder="e.g Kanyiri, breakfast..."
-                                placeholderTextColor="var(--muted-dark)"
+                                placeholderTextColor="#a1b0a3"
                                 value={consumedDescription}
                                 onChangeText={setConsumedDescription}
                                 autoCapitalize="sentences"
@@ -283,7 +283,7 @@ export default function RecordSaleScreen() {
                             <TextInput
                                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                                 placeholder={`e.g. ${runningTotal || 0}`}
-                                placeholderTextColor="var(--muted-dark)"
+                                placeholderTextColor="#a1b0a3"
                                 keyboardType="numeric"
                                 value={saleAmountPaid}
                                 onChangeText={setSaleAmountPaid}
@@ -308,7 +308,7 @@ export default function RecordSaleScreen() {
                                     <TextInput
                                         className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                                         placeholder="Enter customer name..."
-                                        placeholderTextColor="var(--muted-dark)"
+                                        placeholderTextColor="#a1b0a3"
                                         value={saleReferenceName}
                                         onChangeText={setSaleReferenceName}
                                         autoCapitalize="words"

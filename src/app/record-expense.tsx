@@ -77,7 +77,7 @@ export default function RecordExpenseScreen() {
     };
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: 'var(--background)' }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
             <ScreenHeader title="Record Business Expense" subtitle="Log non-stock expenses like rent, bills, or transport" />
             <KeyboardAvoidingView
                 behavior="padding"
@@ -104,7 +104,7 @@ export default function RecordExpenseScreen() {
                         <TextInput
                             className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                             placeholder="e.g. Transport, Rent, Electricity..."
-                            placeholderTextColor="var(--muted-dark)"
+                            placeholderTextColor="#a1b0a3"
                             value={expenseTitle}
                             onChangeText={setExpenseTitle}
                         />
@@ -116,7 +116,7 @@ export default function RecordExpenseScreen() {
                             className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                             placeholder="0.00"
                             keyboardType="numeric"
-                            placeholderTextColor="var(--muted-dark)"
+                            placeholderTextColor="#a1b0a3"
                             value={amount}
                             onChangeText={setAmount}
                         />

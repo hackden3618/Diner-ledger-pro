@@ -73,7 +73,7 @@ export default function AddInventoryScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'var(--background)' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
       <ScreenHeader title={editingItem ? 'Edit Raw Inventory' : 'Add Raw Inventory'} />
       <KeyboardAvoidingView 
         behavior="padding" 
@@ -89,7 +89,7 @@ export default function AddInventoryScreen() {
             <TextInput
               className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
               placeholder="e.g. Wheat Flour, Sugar, Cooking Oil..."
-              placeholderTextColor="var(--muted-dark)"
+              placeholderTextColor="#a1b0a3"
               value={itemName}
               onChangeText={setItemName}
             />
@@ -102,7 +102,7 @@ export default function AddInventoryScreen() {
                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                 placeholder="0"
                 keyboardType="numeric"
-                placeholderTextColor="var(--muted-dark)"
+                placeholderTextColor="#a1b0a3"
                 value={stockLevel}
                 onChangeText={setStockLevel}
               />
@@ -112,7 +112,7 @@ export default function AddInventoryScreen() {
               <TextInput
                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                 placeholder="kg, liters, packets"
-                placeholderTextColor="var(--muted-dark)"
+                placeholderTextColor="#a1b0a3"
                 value={unit}
                 onChangeText={setUnit}
                 autoCapitalize="none"
@@ -126,7 +126,7 @@ export default function AddInventoryScreen() {
               className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
               placeholder="0.00"
               keyboardType="numeric"
-              placeholderTextColor="var(--muted-dark)"
+              placeholderTextColor="#a1b0a3"
               value={price}
               onChangeText={setPrice}
             />
@@ -142,7 +142,7 @@ export default function AddInventoryScreen() {
                 <Image source={{ uri: imageUri }} style={{ width: '100%', height: '100%' }} />
               ) : (
                 <View className="items-center">
-                  <Ionicons name="camera-outline" size={32} color="var(--muted-dark)" />
+                  <Ionicons name="camera-outline" size={32} color="#a1b0a3" />
                   <Text className="text-[10px] text-muted-foreground mt-1">Tap to add</Text>
                 </View>
               )}
