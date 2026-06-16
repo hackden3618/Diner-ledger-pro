@@ -20,7 +20,6 @@ export default function RecordExpenseScreen() {
     const bottomInset = Math.max(insets.bottom, 12);
     const isKeyboardVisible = useKeyboard();
 
-    const [operant, setOperant] = useState('');
     const [expenseTitle, setExpenseTitle] = useState('');
     const [amount, setAmount] = useState('');
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mpesa'>('cash');
