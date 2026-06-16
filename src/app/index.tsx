@@ -55,7 +55,7 @@ export default function Index() {
     <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
 
       {/* CORE VIEWPORT */}
-      <View className="flex-1 px-4 pt-2">
+      <View className="flex-1 px-4 pt-2" style={{ paddingBottom: isKeyboardVisible ? 0 : tabBarBottomInset + 70 }}>
         {currentTab === 'home' && <HomeScreen onNavigateToSettings={() => setCurrentTab('settings')} />}
         {currentTab === 'transactions' && <TransactionsScreen />}
         {currentTab === 'inventory' && (
