@@ -6,7 +6,7 @@ import { useRouter } from "expo-router";
 import ScreenHeader from "@/components/ui/ScreenHeader";
 
 export default function NotificationsScreen() {
-  const { notifications, clearAllNotifs } = useApp();
+  const { notifications, clearAllNotifs, deleteAllNotifs } = useApp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 12);
@@ -49,17 +49,31 @@ export default function NotificationsScreen() {
               )}
             />
 
-            <TouchableOpacity
-              className="bg-primary rounded-[10px] py-4 items-center justify-center mt-2.5"
-              onPress={() => {
-                clearAllNotifs();
-                router.back();
-              }}
-            >
-              <Text className="text-[13px] font-bold text-background">
-                Mark All as Read
-              </Text>
-            </TouchableOpacity>
+            <View className="flex-row gap-2 mt-2.5">
+              <TouchableOpacity
+                className="flex-1 bg-card border-[0.5px] border-border-strong rounded-[10px] py-4 items-center justify-center"
+                onPress={() => {
+                  clearAllNotifs();
+                  router.back();
+                }}
+              >
+                <Text className="text-[13px] font-bold text-foreground">
+                  Mark All Read
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                className="flex-1 bg-destructive/10 border-[0.5px] border-destructive/30 rounded-[10px] py-4 items-center justify-center"
+                onPress={() => {
+                  deleteAllNotifs();
+                  router.back();
+                }}
+              >
+                <Text className="text-[13px] font-bold text-destructive">
+                  Clear All
+                </Text>
+              </TouchableOpacity>
+            </View>
       </View>
     </SafeAreaView>
   );

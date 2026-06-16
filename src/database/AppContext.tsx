@@ -182,7 +182,9 @@ interface AppContextType {
     updateRawInventoryStock: (id: number, newStock: number) => void;
 
     // Notifications
+    unreadNotifsCount: number;
     clearAllNotifs: () => void;
+    deleteAllNotifs: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -573,6 +575,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         refreshAll();
     };
 
+    const deleteAllNotifs = () => {
+        import('./db').then(({ deleteAllNotifications }) => {
+            deleteAllNotifications();
+            refreshAll();
+        });
+    };
+
     return (
         <AppContext.Provider
             value={{
@@ -614,6 +623,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 updateRawInventoryItem,
                 updateRawInventoryStock,
                 clearAllNotifs,
+                deleteAllNotifs,
             }}
         >
             {children}

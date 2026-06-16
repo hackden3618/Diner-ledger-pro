@@ -911,6 +911,10 @@ export function markNotificationsAsRead() {
     db.runSync("UPDATE notifications SET read = 1 WHERE read = 0");
 }
 
+export function deleteAllNotifications() {
+    db.runSync("DELETE FROM notifications");
+}
+
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 export function getSetting(key: string): string {
