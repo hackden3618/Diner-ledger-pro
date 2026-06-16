@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Alert, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { useApp } from '@/database/AppContext';
 import { getSetting } from '@/database/db';
 import { useRouter } from 'expo-router';
@@ -8,8 +8,10 @@ import ActionDropdown from '@/components/ui/ActionDropdown';
 import ProductImage from '@/components/ui/ProductImage';
 import InfoAlert from '@/components/ui/InfoAlert';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useCustomAlert } from "@/context/AlertContext";
 
 export default function RecordSaleScreen() {
+    const { showAlert } = useCustomAlert();
     const { meals, recordSale, transactions } = useApp();
     const router = useRouter();
     const insets = useSafeAreaInsets();
@@ -50,7 +52,7 @@ export default function RecordSaleScreen() {
 
     const handleRecordSaleSave = () => {
         if (!operant.trim()) {
-            Alert.alert("Staff Member Required", "Please select the staff member before saving.");
+            showAlert("Staff Member Required", "Please select the staff member before saving.");
             return;
         }
 
@@ -63,30 +65,30 @@ export default function RecordSaleScreen() {
             });
 
         if (saleItems.length === 0) {
-            Alert.alert("Empty Cart", "Select at least one meal and specify the quantity.");
+            showAlert("Empty Cart", "Select at least one meal and specify the quantity.");
             return;
         }
 
         if (saleType === "credit" && !saleReferenceName.trim()) {
-            Alert.alert("Debtor Name Required", "Specify the debtor name for a credit sale.");
+            showAlert("Debtor Name Required", "Specify the debtor name for a credit sale.");
             return;
         }
 
         if (saleType === "consumed" && !consumedDescription.trim()) {
-            Alert.alert("Description Required", "Please provide a description for the internal consumption.");
+            showAlert("Description Required", "Please provide a description for the internal consumption.");
             return;
         }
 
         const amtPaid = parseFloat(saleAmountPaid);
         // Require customer name for underpayment (paid less than required)
         if (!isNaN(amtPaid) && amtPaid >= 0 && amtPaid < runningTotal && !saleReferenceName.trim() && saleType === "dinein") {
-            Alert.alert("Customer Name Required", "Customer underpaid. Please provide their name to register the debt.");
+            showAlert("Customer Name Required", "Customer underpaid. Please provide their name to register the debt.");
             return;
         }
 
         // Require customer name for overpayment (paid more than required)
         if (!isNaN(amtPaid) && amtPaid > runningTotal && !saleReferenceName.trim() && saleType === "dinein") {
-            Alert.alert("Customer Name Required", "Customer overpaid. Please provide their name to register the credit.");
+            showAlert("Customer Name Required", "Customer overpaid. Please provide their name to register the credit.");
             return;
         }
 
@@ -94,11 +96,11 @@ export default function RecordSaleScreen() {
             const dbMeal = meals.find((m) => m.id === item.mealId);
             if (!dbMeal) continue;
             if (item.qty <= 0 || isNaN(item.qty)) {
-                Alert.alert("Invalid Quantity", "Quantities must be positive numbers.");
+                showAlert("Invalid Quantity", "Quantities must be positive numbers.");
                 return;
             }
             if (item.qty > dbMeal.stock) {
-                Alert.alert("Stock Exceeded", `Cannot sell ${item.qty} of ${item.name}. Only ${dbMeal.stock} in stock.`);
+                showAlert("Stock Exceeded", `Cannot sell ${item.qty} of ${item.name}. Only ${dbMeal.stock} in stock.`);
                 return;
             }
         }
@@ -117,11 +119,11 @@ export default function RecordSaleScreen() {
                 consumedDescription.trim() || undefined
             );
 
-            Alert.alert("Transaction Successful", "Sale recorded successfully.", [
+            showAlert("Transaction Successful", "Sale recorded successfully.", [
                 { text: "OK", onPress: () => router.back() }
             ]);
         } catch (error) {
-            Alert.alert(
+            showAlert(
                 "Transaction Failed",
                 error instanceof Error ? error.message : "The sale could not be recorded.",
             );

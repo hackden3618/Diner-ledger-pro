@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Alert, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { useApp } from '@/database/AppContext';
 import { useCalculations } from '@/database/CalculationsContext';
 import { getSetting } from '@/database/db';
@@ -8,8 +8,10 @@ import ScreenHeader from '@/components/ui/ScreenHeader';
 import ActionDropdown from '@/components/ui/ActionDropdown';
 import InfoAlert from '@/components/ui/InfoAlert';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useCustomAlert } from "@/context/AlertContext";
 
 export default function RecordPurchaseScreen() {
+    const { showAlert } = useCustomAlert();
     const { recordPurchase, recordCreditorPayment, transactions, creditors } = useApp();
     const { cashAvailableToday, mpesaAvailableToday, moneyInHouse } = useCalculations();
     const router = useRouter();
@@ -53,13 +55,13 @@ export default function RecordPurchaseScreen() {
     const recordValidatedPurchase = (expectedNum: number, paidNum: number) => {
         const paymentDiff = paidNum - expectedNum;
         if (paidNum > cashAvailableToday && paymentMethod === 'cash') {
-            Alert.alert("Invalid Request", "The cash you want to pay is more than what you registered in the system\
+            showAlert("Invalid Request", "The cash you want to pay is more than what you registered in the system\
                             \n\nIf you have extra cash, register it as a sale");
             return;
         }
 
         if (paidNum > mpesaAvailableToday && paymentMethod === 'mpesa') {
-            Alert.alert("Invalid Request", "The mpesa amount you want to pay is more than what you registered in the system\
+            showAlert("Invalid Request", "The mpesa amount you want to pay is more than what you registered in the system\
                             \n\nIf you have extra money, register it as a sale");
             return;
         }
@@ -98,7 +100,7 @@ export default function RecordPurchaseScreen() {
                 }
             }
 
-            Alert.alert(
+            showAlert(
                 "Purchase Recorded",
                 `KES ${expectedNum.toLocaleString()} expense logged for ${itemDescription.trim()}.\n${paymentDiff < 0
                     ? `Unpaid KES ${Math.abs(paymentDiff).toLocaleString()} added to creditors.`
@@ -109,7 +111,7 @@ export default function RecordPurchaseScreen() {
                 [{ text: 'OK', onPress: () => router.back() }]
             );
         } catch (error) {
-            Alert.alert(
+            showAlert(
                 "Purchase Failed",
                 error instanceof Error ? error.message : "The purchase could not be recorded.",
             );
@@ -118,36 +120,36 @@ export default function RecordPurchaseScreen() {
 
     const handleSave = () => {
         if (!operant.trim()) {
-            Alert.alert("Staff Required", "Please select who received the items.");
+            showAlert("Staff Required", "Please select who received the items.");
             return;
         }
         if (!supplier.trim()) {
-            Alert.alert("Supplier Required", "Please select a supplier.");
+            showAlert("Supplier Required", "Please select a supplier.");
             return;
         }
         if (!itemDescription.trim()) {
-            Alert.alert("Description Required", "Please enter what was purchased.");
+            showAlert("Description Required", "Please enter what was purchased.");
             return;
         }
         if (!expectedAmount.trim()) {
-            Alert.alert("Expected Amount Required", "Please enter the expected amount.");
+            showAlert("Expected Amount Required", "Please enter the expected amount.");
             return;
         }
 
         const expectedNum = parseFloat(expectedAmount);
         if (isNaN(expectedNum) || expectedNum <= 0) {
-            Alert.alert("Invalid Amount", "Expected amount must be a positive number.");
+            showAlert("Invalid Amount", "Expected amount must be a positive number.");
             return;
         }
 
         const paidNum = paidAmount.trim() ? parseFloat(paidAmount) : 0;
         if (isNaN(paidNum) || paidNum < 0) {
-            Alert.alert("Invalid Paid Amount", "Paid amount must be a valid number.");
+            showAlert("Invalid Paid Amount", "Paid amount must be a valid number.");
             return;
         }
 
         if (paidNum > expectedNum) {
-            Alert.alert(
+            showAlert(
                 "Confirm Supplier Overpayment",
                 `You entered KES ${paidNum.toLocaleString()} paid against a KES ${expectedNum.toLocaleString()} purchase.\n\nThe extra KES ${(paidNum - expectedNum).toLocaleString()} will be recorded as supplier credit/advance. Confirm this is the correct amount paid.`,
                 [

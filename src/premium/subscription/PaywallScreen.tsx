@@ -1,16 +1,18 @@
 import { useApp } from "@/database/AppContext";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
-import { Alert, KeyboardAvoidingView, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { KeyboardAvoidingView, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SUBSCRIPTION_PLANS, SubscriptionPlanId, TRIAL_DAYS } from "./plans";
 import { useSubscription } from "./SubscriptionProvider";
+import { useCustomAlert } from "@/context/AlertContext";
 
 function fmtKes(amount: number) {
   return `KES ${amount.toLocaleString("en-KE")}`;
 }
 
 export default function PaywallScreen() {
+    const { showAlert } = useCustomAlert();
   const { businessName } = useApp();
   const {
     state,
@@ -29,12 +31,12 @@ export default function PaywallScreen() {
 
   const handleStartTrial = () => {
     startTrial();
-    Alert.alert("Trial Started", `${TRIAL_DAYS} days of full access have been activated.`);
+    showAlert("Trial Started", `${TRIAL_DAYS} days of full access have been activated.`);
   };
 
   const handleStartPayment = async () => {
     if (!phoneNumber.trim()) {
-      Alert.alert("Phone Required", "Enter the M-Pesa phone number that should receive the STK Push.");
+      showAlert("Phone Required", "Enter the M-Pesa phone number that should receive the STK Push.");
       return;
     }
 
@@ -45,12 +47,12 @@ export default function PaywallScreen() {
         phoneNumber: phoneNumber.trim(),
         businessName,
       });
-      Alert.alert(
+      showAlert(
         "STK Push Sent",
         "Complete payment on the phone, then tap Confirm Payment. Access unlocks only after payment is verified.",
       );
     } catch (error) {
-      Alert.alert(
+      showAlert(
         "Payment Setup Needed",
         error instanceof Error ? error.message : "Could not start payment.",
       );
@@ -63,12 +65,12 @@ export default function PaywallScreen() {
     try {
       setBusy(true);
       const paid = await verifyLatestPayment();
-      Alert.alert(
+      showAlert(
         paid ? "Payment Confirmed" : "Still Waiting",
         paid ? "Premium access is active." : checkout.message || "Payment has not been confirmed yet.",
       );
     } catch (error) {
-      Alert.alert(
+      showAlert(
         "Verification Failed",
         error instanceof Error ? error.message : "Could not verify payment.",
       );

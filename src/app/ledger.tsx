@@ -3,9 +3,10 @@ import { buildMoneyLedger, buildTrialBalance, summarizeAccounting } from "@/util
 import { generateLedgerPDF } from "@/utils/pdfGenerator";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
-import { Alert, ScrollView, Text, TouchableOpacity, View, FlatList } from "react-native";
+import { ScrollView, Text, TouchableOpacity, View, FlatList } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import ScreenHeader from "@/components/ui/ScreenHeader";
+import { useCustomAlert } from "@/context/AlertContext";
 
 type Period = "today" | "week" | "month" | "year" | "all";
 
@@ -18,6 +19,7 @@ const PERIOD_LABELS: Record<Period, string> = {
 };
 
 export default function LedgerScreen() {
+    const { showAlert } = useCustomAlert();
     const {
         transactions,
         debtors,
@@ -76,7 +78,7 @@ export default function LedgerScreen() {
                 summary,
             );
         } catch {
-            Alert.alert(
+            showAlert(
                 "PDF Error",
                 "Could not generate the report. Please try again.",
             );

@@ -2,10 +2,11 @@ import { useApp } from "@/database/AppContext";
 import { useCalculations } from "@/database/CalculationsContext";
 import { getSetting, updateSetting, getMeals } from "@/database/db";
 import React, { useEffect, useState } from "react";
-import { Alert, Text, TextInput, TouchableOpacity, View, ScrollView, KeyboardAvoidingView } from "react-native";
+import { Text, TextInput, TouchableOpacity, View, ScrollView, KeyboardAvoidingView } from "react-native";
 import ScreenHeader from "@/components/ui/ScreenHeader";
 import ActionDropdown from "@/components/ui/ActionDropdown";
 import InfoAlert from "@/components/ui/InfoAlert";
+import { useCustomAlert } from "@/context/AlertContext";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n: number) =>
@@ -28,6 +29,7 @@ function FieldLabel({ label }: { label: string }) {
 }
 
 export default function SettingsScreen() {
+    const { showAlert } = useCustomAlert();
     const {
         businessName,
         saveBusinessName,
@@ -95,11 +97,11 @@ export default function SettingsScreen() {
     // ─── Handlers ─────────────────────────────────────────────────────────────────
     const handleSaveBusinessName = () => {
         if (!tempBusinessName.trim()) {
-            Alert.alert("Validation", "Business name cannot be empty.");
+            showAlert("Validation", "Business name cannot be empty.");
             return;
         }
         saveBusinessName(tempBusinessName.trim());
-        Alert.alert("✅ Saved", "Business name updated successfully.");
+        showAlert("✅ Saved", "Business name updated successfully.");
     };
 
     const now = new Date().toDateString();
@@ -107,23 +109,23 @@ export default function SettingsScreen() {
     const handleSaveOpeningBalance = () => {
         const obSeededDate = getSetting("ob_seeded_date");
         if (obSeededDate === now || hasOpeningBalanceToday()) {
-            Alert.alert("Restricted", "You already set the opening balance for the day \nRecord extra money as sales");
+            showAlert("Restricted", "You already set the opening balance for the day \nRecord extra money as sales");
             return;
         }
         const cashVal = parseFloat(openingCash) || 0;
         const mpesaVal = parseFloat(openingMpesa) || 0;
         if (cashVal < 0 || mpesaVal < 0) {
-            Alert.alert("Invalid", "Opening balances must be non-negative numbers.");
+            showAlert("Invalid", "Opening balances must be non-negative numbers.");
             return;
         }
         if (cashVal + mpesaVal <= 0) {
-            Alert.alert("Invalid", "Enter a cash or M-Pesa opening balance.");
+            showAlert("Invalid", "Enter a cash or M-Pesa opening balance.");
             return;
         }
 
         // Get the current operant (who is seeding)
 
-        Alert.alert("Confirm Input Locking", "This will lock the input for the day! \nContinue?", [
+        showAlert("Confirm Input Locking", "This will lock the input for the day! \nContinue?", [
             { text: "Cancel", style: "cancel" },
             {
                 text: "Proceed",
@@ -140,9 +142,9 @@ export default function SettingsScreen() {
                         setLockOBInput(true);
                         setObSeeder(seeder);
                         refreshAll();
-                        Alert.alert("✅ Saved", "Opening balance updated.");
+                        showAlert("✅ Saved", "Opening balance updated.");
                     } catch (error) {
-                        Alert.alert(
+                        showAlert(
                             "Opening Balance Locked",
                             error instanceof Error ? error.message : "Opening balance could not be saved.",
                         );
@@ -154,57 +156,57 @@ export default function SettingsScreen() {
 
     const handleSaveStaff = () => {
         if (!staffOperants.trim()) {
-            Alert.alert("Validation", "Please enter at least one operant.");
+            showAlert("Validation", "Please enter at least one operant.");
             return;
         }
         updateSetting("staff_operants", staffOperants.trim());
         refreshAll();
-        Alert.alert("✅ Saved", "Staff operants updated.");
+        showAlert("✅ Saved", "Staff operants updated.");
     };
 
     const handleSaveSuppliers = () => {
         if (!suppliers.trim()) {
-            Alert.alert("Validation", "Please enter at least one supplier.");
+            showAlert("Validation", "Please enter at least one supplier.");
             return;
         }
         updateSetting("suppliers", suppliers.trim());
         refreshAll();
-        Alert.alert("✅ Saved", "Suppliers list updated.");
+        showAlert("✅ Saved", "Suppliers list updated.");
     };
 
     const [collectorName, setCollectorName] = useState("");
 
     const handleRecordCollection = (confirmedVariance = false) => {
         if (!closeDayOperant.trim()) {
-            Alert.alert(
+            showAlert(
                 "Staff Name Required",
                 "Please enter the staff member handing over the collection.",
             );
             return;
         }
         if (!collectorName.trim()) {
-            Alert.alert("Collector Required", "Please select who collected the money.");
+            showAlert("Collector Required", "Please select who collected the money.");
             return;
         }
 
         const actualCash = parseFloat(collectionCash) || 0;
         const actualMpesa = parseFloat(collectionMpesa) || 0;
         if (actualCash < 0 || actualMpesa < 0) {
-            Alert.alert("Invalid Collection", "Collected amounts must be non-negative numbers.");
+            showAlert("Invalid Collection", "Collected amounts must be non-negative numbers.");
             return;
         }
         if (actualCash + actualMpesa <= 0 && moneyInHouse > 0) {
-            Alert.alert("Collection Required", "Enter the actual cash or M-Pesa collected.");
+            showAlert("Collection Required", "Enter the actual cash or M-Pesa collected.");
             return;
         }
         if (actualCash > cashAvailableToday) {
-            Alert.alert("Invalid Collection", "The cash amount you entered is greater than what the system registered.\
+            showAlert("Invalid Collection", "The cash amount you entered is greater than what the system registered.\
                         \n\nThis action is rejected for proper book-keeping");
             return;
         }
 
         if (actualMpesa > mpesaAvailableToday) {
-            Alert.alert("Invalid Collection", "The mpesa amount you entered is greater than what the system registered.\
+            showAlert("Invalid Collection", "The mpesa amount you entered is greater than what the system registered.\
                         \n\nThis action is rejected for proper book-keeping");
             return;
         }
@@ -212,7 +214,7 @@ export default function SettingsScreen() {
         const cashVariance = actualCash - cashAvailableToday;
         const mpesaVariance = actualMpesa - mpesaAvailableToday;
         if (!confirmedVariance && (Math.abs(cashVariance) > 0.01 || Math.abs(mpesaVariance) > 0.01)) {
-            Alert.alert(
+            showAlert(
                 "Collection Variance",
                 `Expected Cash: ${fmt(cashAvailableToday)}\nActual Cash: ${fmt(actualCash)}\nVariance: ${fmt(cashVariance)}\n\nExpected M-Pesa: ${fmt(mpesaAvailableToday)}\nActual M-Pesa: ${fmt(actualMpesa)}\nVariance: ${fmt(mpesaVariance)}\n\nConfirm these are the amounts actually collected?`,
                 [
@@ -227,7 +229,7 @@ export default function SettingsScreen() {
             return;
         }
 
-        Alert.alert(
+        showAlert(
             "Record Collection?",
             `Cash expected: ${fmt(cashAvailableToday)}\nCash collected: ${fmt(actualCash)}\n\nM-Pesa expected: ${fmt(mpesaAvailableToday)}\nM-Pesa collected: ${fmt(actualMpesa)}\n\nThe day will close automatically at midnight.`,
             [
@@ -250,12 +252,12 @@ export default function SettingsScreen() {
                             setCollectionCash("0");
                             setCollectionMpesa("0");
                             setLockOBInput(false);
-                            Alert.alert(
+                            showAlert(
                                 "Collection Recorded",
                                 `Collected by ${collectorName.trim()}.\nCash variance: ${fmt(cashVariance)}\nM-Pesa variance: ${fmt(mpesaVariance)}\n\nRe-Investment is plausible tomorrow when opening balance.`,
                             );
                         } catch (error) {
-                            Alert.alert(
+                            showAlert(
                                 "Collection Failed",
                                 error instanceof Error ? error.message : "The collection could not be recorded.",
                             );
@@ -604,12 +606,12 @@ export default function SettingsScreen() {
                                                 resetDatabase();
                                                 setShowResetConfirm(false);
                                                 setResetPassword("");
-                                                Alert.alert(
+                                                showAlert(
                                                     "Database Reset",
                                                     "All data has been wiped. Starting fresh.",
                                                 );
                                             } else {
-                                                Alert.alert(
+                                                showAlert(
                                                     "Incorrect Password",
                                                     "The password you entered is wrong. Reset aborted.",
                                                 );

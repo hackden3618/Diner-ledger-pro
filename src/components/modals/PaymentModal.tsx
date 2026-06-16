@@ -4,8 +4,9 @@ import { useCalculations } from "@/database/CalculationsContext";
 import { Ionicons } from "@expo/vector-icons";
 import { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import React, { useEffect, useRef, useState } from "react";
-import { Alert, KeyboardAvoidingView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { KeyboardAvoidingView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import ActionDropdown from "@/components/ui/ActionDropdown";
+import { useCustomAlert } from "@/context/AlertContext";
 
 interface PaymentModalProps {
     visible: boolean;
@@ -20,6 +21,7 @@ export default function PaymentModal({
     type,
     personName,
 }: PaymentModalProps) {
+    const { showAlert } = useCustomAlert();
     const { recordDebtorPayment, recordCreditorPayment, transactions } = useApp();
     const { cashAvailableToday, mpesaAvailableToday} = useCalculations();
 
@@ -40,7 +42,7 @@ export default function PaymentModal({
 
     const handleSave = () => {
         if (!operant.trim()) {
-            Alert.alert(
+            showAlert(
                 "Staff Name Required",
                 "Please enter the name of the staff member handling this payment.",
             );
@@ -48,15 +50,15 @@ export default function PaymentModal({
         }
         const amount = parseFloat(payAmount);
         if (isNaN(amount) || amount <= 0) {
-            Alert.alert("Invalid Amount", "Enter a valid positive amount.");
+            showAlert("Invalid Amount", "Enter a valid positive amount.");
             return;
         }
         if (amount > cashAvailableToday && type === "creditor" && payMethod === "cash"){
-            Alert.alert("Invalid Amount", "Amount entered is more than cash available.");
+            showAlert("Invalid Amount", "Amount entered is more than cash available.");
             return;
         }
         if (amount > mpesaAvailableToday && type === "creditor" && payMethod === "mpesa"){
-            Alert.alert("Invalid Amount", "Amount entered is more than mpesa available.");
+            showAlert("Invalid Amount", "Amount entered is more than mpesa available.");
             return;
         }
 
@@ -69,7 +71,7 @@ export default function PaymentModal({
 
             dismissRef.current?.();
         } catch (error) {
-            Alert.alert(
+            showAlert(
                 "Payment Failed",
                 error instanceof Error ? error.message : "The payment could not be recorded.",
             );

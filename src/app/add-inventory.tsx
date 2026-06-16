@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Alert, Image, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Image, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '@/database/AppContext';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import ScreenHeader from '@/components/ui/ScreenHeader';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useCustomAlert } from "@/context/AlertContext";
 
 export default function AddInventoryScreen() {
+    const { showAlert } = useCustomAlert();
   const { addRawInventoryItem, updateRawInventoryItem, inventoryItems } = useApp();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -47,7 +49,7 @@ export default function AddInventoryScreen() {
 
   const handleSave = () => {
     if (!itemName || !stockLevel || !price || !unit) {
-      Alert.alert('Validation Error', 'Please fill in all required fields.');
+      showAlert('Validation Error', 'Please fill in all required fields.');
       return;
     }
     
@@ -55,16 +57,16 @@ export default function AddInventoryScreen() {
     const parsedPrice = parseFloat(price);
     
     if (isNaN(parsedStock) || parsedStock < 0 || isNaN(parsedPrice) || parsedPrice < 0) {
-      Alert.alert('Validation Error', 'Stock and price must be positive numbers.');
+      showAlert('Validation Error', 'Stock and price must be positive numbers.');
       return;
     }
 
     if (editingItem) {
       updateRawInventoryItem(editingItem.id, itemName, parsedStock, unit, parsedPrice, imageUri || undefined);
-      Alert.alert("Success", "Inventory item updated.");
+      showAlert("Success", "Inventory item updated.");
     } else {
       addRawInventoryItem(itemName, parsedStock, unit, parsedPrice, imageUri || undefined);
-      Alert.alert("Success", "Inventory item added.");
+      showAlert("Success", "Inventory item added.");
     }
 
     router.back();

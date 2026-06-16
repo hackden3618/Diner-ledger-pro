@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Alert, Image, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Image, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '@/database/AppContext';
@@ -7,8 +7,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import ScreenHeader from '@/components/ui/ScreenHeader';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SEEDED_MENU_IMAGES, isSeededMenuImageKey } from '@/utils/menuItemImages';
+import { useCustomAlert } from "@/context/AlertContext";
 
 export default function AddMealScreen() {
+    const { showAlert } = useCustomAlert();
   const { addNewMeal, updateMeal, deleteMeal, meals } = useApp();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -59,7 +61,7 @@ export default function AddMealScreen() {
 
   const handleAddMealSave = () => {
     if (!newMealName || !newMealPrice || !newMealStock) {
-      Alert.alert('Validation Error', 'Please fill in meal name, price and opening stock.');
+      showAlert('Validation Error', 'Please fill in meal name, price and opening stock.');
       return;
     }
     
@@ -68,7 +70,7 @@ export default function AddMealScreen() {
     const alertLvl = parseInt(newMealAlert, 10) || 10;
     
     if (isNaN(price) || price < 0 || isNaN(stock) || stock < 0 || isNaN(alertLvl) || alertLvl < 0) {
-      Alert.alert('Validation Error', 'Prices and stocks must be positive numbers.');
+      showAlert('Validation Error', 'Prices and stocks must be positive numbers.');
       return;
     }
 
@@ -76,10 +78,10 @@ export default function AddMealScreen() {
 
     if (editingMeal) {
       updateMeal(editingMeal.id, newMealName, price, stock, alertLvl, finalImage);
-      Alert.alert("Success", "Meal updated successfully.");
+      showAlert("Success", "Meal updated successfully.");
     } else {
       addNewMeal(newMealName, price, stock, alertLvl, finalImage);
-      Alert.alert("Success", "Meal added successfully.");
+      showAlert("Success", "Meal added successfully.");
     }
 
     router.back();
@@ -87,7 +89,7 @@ export default function AddMealScreen() {
 
   const handleDeleteMeal = () => {
     if (!editingMeal) return;
-    Alert.alert(
+    showAlert(
       "Delete Menu Item",
       `Are you sure you want to permanently delete ${editingMeal.name}?`,
       [

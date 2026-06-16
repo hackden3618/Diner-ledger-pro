@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, Alert, ScrollView, KeyboardAvoidingView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '@/database/AppContext';
@@ -7,8 +7,10 @@ import { useRouter } from 'expo-router';
 import ScreenHeader from '@/components/ui/ScreenHeader';
 import ActionDropdown from '@/components/ui/ActionDropdown';
 import InfoAlert from '@/components/ui/InfoAlert';
+import { useCustomAlert } from "@/context/AlertContext";
 
 export default function DispatchTakeoutScreen() {
+    const { showAlert } = useCustomAlert();
   const { meals, dispatchTakeout, transactions } = useApp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -23,7 +25,7 @@ export default function DispatchTakeoutScreen() {
       const existing = prev.find(item => item.mealId === mealId);
       if (existing) {
         if (existing.qty >= stock) {
-          Alert.alert('Stock Limit', 'Cannot dispatch more than available stock.');
+          showAlert('Stock Limit', 'Cannot dispatch more than available stock.');
           return prev;
         }
         return prev.map(item => item.mealId === mealId ? { ...item, qty: item.qty + 1 } : item);
@@ -31,7 +33,7 @@ export default function DispatchTakeoutScreen() {
       if (stock > 0) {
         return [...prev, { mealId, name, qty: 1, price }];
       } else {
-        Alert.alert('Out of Stock', 'This meal is currently out of stock.');
+        showAlert('Out of Stock', 'This meal is currently out of stock.');
         return prev;
       }
     });
@@ -65,11 +67,11 @@ export default function DispatchTakeoutScreen() {
 
   const handleDispatch = () => {
     if (!staffName.trim()) {
-      Alert.alert('Validation Error', 'Please provide the staff member name taking out the goods.');
+      showAlert('Validation Error', 'Please provide the staff member name taking out the goods.');
       return;
     }
     if (selectedItems.length === 0) {
-      Alert.alert('Validation Error', 'Please add at least one item.');
+      showAlert('Validation Error', 'Please add at least one item.');
       return;
     }
     try {
@@ -77,7 +79,7 @@ export default function DispatchTakeoutScreen() {
       resetForm();
       router.back();
     } catch (error) {
-      Alert.alert(
+      showAlert(
         'Dispatch Failed',
         error instanceof Error ? error.message : 'The dispatch could not be recorded.',
       );

@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, KeyboardAvoidingView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '@/database/AppContext';
+import { useCustomAlert } from "@/context/AlertContext";
 
 type DebtorsScreenProps = {
     debtorTab: 'debtors' | 'creditors';
@@ -20,19 +21,20 @@ export default function DebtorsScreen({
     setSelectedCreditorName,
     setCreditorPayModalVisible,
 }: DebtorsScreenProps) {
+    const { showAlert } = useCustomAlert();
     const { debtors, creditors, clearDebtorAccount } = useApp();
 
     const activeDebtors = debtors.filter(debtor => (debtor.totalOwed - debtor.totalPaid) !== 0);
     const activeCreditors = creditors.filter(creditor => (creditor.totalOwed - creditor.totalPaid) !== 0);
 
     const handleDeleteDebtor = (debtor_name: string, debtor_id: number) => {
-        Alert.alert("Dangerous Action!",
+        showAlert("Dangerous Action!",
             "This action will cause a ledger imbalance! \nAre you sure of this?",
             [
                 { text: "Abort", style: "cancel" },
                 {
                     text: "Continue Anyway", style: "destructive", onPress: () => {
-                        Alert.alert("Deleted!", "The debtor's record has been deleted successfully \nDebtor Name: " + debtor_name)
+                        showAlert("Deleted!", "The debtor's record has been deleted successfully \nDebtor Name: " + debtor_name)
                         clearDebtorAccount(debtor_id);
                     }
                 }

@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Alert, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, ScrollView, useWindowDimensions } from 'react-native';
 import { useApp } from "@/database/AppContext";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import ScreenHeader from "@/components/ui/ScreenHeader";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useCustomAlert } from "@/context/AlertContext";
 
 export default function ReconcileTakeoutScreen() {
+    const { showAlert } = useCustomAlert();
   const { reconcileTakeout, takeoutSessions } = useApp();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -131,7 +133,7 @@ export default function ReconcileTakeoutScreen() {
 
     for (const item of items) {
       if (item.unsold + item.cashSold + item.creditSold !== item.dispatchedQty) {
-        Alert.alert(
+        showAlert(
           "Reconciliation Mismatch",
           `The sum of Unsold, Cash, and Credit for ${item.name} does not match the dispatched quantity (${item.dispatchedQty}).`
         );
@@ -143,11 +145,11 @@ export default function ReconcileTakeoutScreen() {
     const actualCreditAmount = unifiedDebtors.reduce((s, d) => s + d.amount, 0);
 
     if (totalExpectedCredit > 0 && unifiedDebtors.length === 0) {
-      Alert.alert("Missing Debtors", "Please add debtor details for the credit sales.");
+      showAlert("Missing Debtors", "Please add debtor details for the credit sales.");
       return;
     }
     if (totalExpectedCredit !== actualCreditAmount && totalExpectedCredit > 0) {
-      Alert.alert(
+      showAlert(
         "Debtor Mismatch",
         `The total debtor amounts (KES ${actualCreditAmount}) does not match the expected credit value (KES ${totalExpectedCredit}).`
       );
@@ -160,7 +162,7 @@ export default function ReconcileTakeoutScreen() {
 
     // Validate that cash + mpesa equals expected total
     if (Math.abs((cashNum + mpesaNum) - totalCashNum) > 0.01) {
-      Alert.alert(
+      showAlert(
         "Amount Mismatch",
         `The sum of Cash (KES ${cashNum}) and M-Pesa (KES ${mpesaNum}) must equal the expected total (KES ${totalCashNum}).`
       );
@@ -180,11 +182,11 @@ export default function ReconcileTakeoutScreen() {
         globalDebtors: unifiedDebtors.filter((d) => d.name.trim() !== "" && d.amount > 0),
       });
 
-      Alert.alert("Success", "Reconciliation completed successfully.", [
+      showAlert("Success", "Reconciliation completed successfully.", [
         { text: "OK", onPress: () => router.back() }
       ]);
     } catch (error) {
-      Alert.alert(
+      showAlert(
         "Reconciliation Failed",
         error instanceof Error ? error.message : "The takeout session could not be reconciled.",
       );

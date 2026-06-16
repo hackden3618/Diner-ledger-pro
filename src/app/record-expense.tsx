@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Alert, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { useApp } from '@/database/AppContext';
 import { getSetting } from '@/database/db';
 import { useRouter } from 'expo-router';
@@ -8,8 +8,10 @@ import ActionDropdown from '@/components/ui/ActionDropdown';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCalculations } from '@/database/CalculationsContext';
 import InfoAlert from '@/components/ui/InfoAlert';
+import { useCustomAlert } from "@/context/AlertContext";
 
 export default function RecordExpenseScreen() {
+    const { showAlert } = useCustomAlert();
     const { recordExpense, transactions } = useApp();
     const { cashAvailableToday, mpesaAvailableToday } = useCalculations();
     const router = useRouter();
@@ -28,31 +30,31 @@ export default function RecordExpenseScreen() {
 
     const handleSave = () => {
         if (!operant.trim()) {
-            Alert.alert("Staff Required", "Please select who made the expense.");
+            showAlert("Staff Required", "Please select who made the expense.");
             return;
         }
         if (!expenseTitle.trim()) {
-            Alert.alert("Title Required", "Please enter what the expense was for.");
+            showAlert("Title Required", "Please enter what the expense was for.");
             return;
         }
         if (!amount.trim()) {
-            Alert.alert("Amount Required", "Please enter the amount.");
+            showAlert("Amount Required", "Please enter the amount.");
             return;
         }
         const amountNum = parseFloat(amount);
         if (isNaN(amountNum) || amountNum <= 0) {
-            Alert.alert("Invalid Amount", "Amount must be a positive number.");
+            showAlert("Invalid Amount", "Amount must be a positive number.");
             return;
         }
 
         if ((amountNum > cashAvailableToday) && paymentMethod === 'cash') {
-            Alert.alert("Invalid Request", "The cash you want to pay is more than what you registered in the system\
+            showAlert("Invalid Request", "The cash you want to pay is more than what you registered in the system\
                             \n\nIf you have extra cash, register it as a sale");
             return;
         }
 
         if ((amountNum > mpesaAvailableToday) && paymentMethod === 'mpesa') {
-            Alert.alert("Invalid Request", "The mpesa amount you want to pay is more than what you registered in the system\
+            showAlert("Invalid Request", "The mpesa amount you want to pay is more than what you registered in the system\
                             \n\nIf you have extra money, register it as a sale");
             return;
         }
@@ -61,13 +63,13 @@ export default function RecordExpenseScreen() {
         try {
             recordExpense(expenseTitle.trim(), amountNum, paymentMethod, operant.trim());
 
-            Alert.alert(
+            showAlert(
                 "✅ Expense Recorded",
                 `KES ${amountNum.toLocaleString()} logged for ${expenseTitle.trim()}.`,
                 [{ text: 'OK', onPress: () => router.back() }]
             );
         } catch (error) {
-            Alert.alert(
+            showAlert(
                 "Expense Failed",
                 error instanceof Error ? error.message : "The expense could not be recorded.",
             );
