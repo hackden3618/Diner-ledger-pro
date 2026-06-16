@@ -56,7 +56,7 @@ export default function Index() {
 
       {/* CORE VIEWPORT */}
       <View className="flex-1 px-4 pt-2">
-        {currentTab === 'home' && <HomeScreen />}
+        {currentTab === 'home' && <HomeScreen onNavigateToSettings={() => setCurrentTab('settings')} />}
         {currentTab === 'transactions' && <TransactionsScreen />}
         {currentTab === 'inventory' && (
           <InventoryScreen />

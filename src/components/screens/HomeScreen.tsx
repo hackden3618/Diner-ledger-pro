@@ -13,7 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "@/database/AppContext";
 import { useCalculations } from "@/database/CalculationsContext";
 
-export default function HomeScreen() {
+export default function HomeScreen({ onNavigateToSettings }: { onNavigateToSettings?: () => void }) {
     const { transactions, takeoutSessions, debtors, creditors, businessName, unreadNotifsCount } = useApp();
     const {
         totalSalesToday,
@@ -65,7 +65,7 @@ export default function HomeScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                         className="w-10 h-10 rounded-[14px] bg-primary/10 border-[0.5px] border-primary/20 items-center justify-center"
-                        onPress={() => router.push('/settings')}
+                        onPress={() => onNavigateToSettings && onNavigateToSettings()}
                     >
                         <Text className="text-[14px] font-bold text-primary">
                             {businessName.substring(0, 2).toUpperCase()}
