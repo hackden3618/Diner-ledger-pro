@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { hapticLight } from '../../utils/haptics';
 
 type TabName = 'home' | 'transactions' | 'inventory' | 'debtors' | 'settings';
 
@@ -31,7 +32,12 @@ export default function FloatingTabBar({ bottomInset, currentTab, setCurrentTab 
               accessibilityRole="button"
               accessibilityState={{ selected: isActive }}
               hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-              onPress={() => setCurrentTab(tab.name)}
+              onPress={() => {
+                if (!isActive) {
+                  hapticLight();
+                  setCurrentTab(tab.name);
+                }
+              }}
               style={styles.item}
             >
               <Ionicons name={tab.icon} size={21} color={isActive ? '#1f9f55' : '#879689'} />

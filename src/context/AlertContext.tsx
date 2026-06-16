@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import CustomAlertModal, { AlertButton } from '../components/ui/CustomAlertModal';
+import { hapticSuccess, hapticError, hapticWarning } from '../utils/haptics';
 
 interface AlertState {
     visible: boolean;
@@ -27,6 +28,15 @@ export function AlertProvider({ children }: { children: ReactNode }) {
             message,
             buttons,
         });
+
+        const lowerTitle = title.toLowerCase();
+        if (lowerTitle.includes('success')) {
+            hapticSuccess();
+        } else if (lowerTitle.includes('failed') || lowerTitle.includes('error')) {
+            hapticError();
+        } else {
+            hapticWarning();
+        }
     };
 
     const closeAlert = () => {

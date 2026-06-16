@@ -7,11 +7,12 @@ import {
     useWindowDimensions,
     View,
 } from "react-native";
-import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { hapticLight } from "@/utils/haptics";
 
 import { useApp } from "@/database/AppContext";
 import { useCalculations } from "@/database/CalculationsContext";
+import { useRouter } from "expo-router";
 
 export default function HomeScreen({ onNavigateToSettings }: { onNavigateToSettings?: () => void }) {
     const { transactions, takeoutSessions, debtors, creditors, businessName, unreadNotifsCount } = useApp();
@@ -56,7 +57,10 @@ export default function HomeScreen({ onNavigateToSettings }: { onNavigateToSetti
                 <View className="flex-row items-center gap-3">
                     <TouchableOpacity
                         className="w-10 h-10 rounded-[14px] bg-card border-[0.5px] border-border-light items-center justify-center relative"
-                        onPress={() => router.push('/notifications')}
+                        onPress={() => {
+                            hapticLight();
+                            router.push('/notifications');
+                        }}
                     >
                         <Ionicons name="notifications-outline" size={20} color="#6b7a6d" />
                         {unreadNotifsCount > 0 && (
@@ -65,7 +69,10 @@ export default function HomeScreen({ onNavigateToSettings }: { onNavigateToSetti
                     </TouchableOpacity>
                     <TouchableOpacity
                         className="w-10 h-10 rounded-[14px] bg-primary/10 border-[0.5px] border-primary/20 items-center justify-center"
-                        onPress={() => onNavigateToSettings && onNavigateToSettings()}
+                        onPress={() => {
+                            hapticLight();
+                            if (onNavigateToSettings) onNavigateToSettings();
+                        }}
                     >
                         <Text className="text-[14px] font-bold text-primary">
                             {businessName.substring(0, 2).toUpperCase()}
@@ -243,7 +250,10 @@ export default function HomeScreen({ onNavigateToSettings }: { onNavigateToSetti
                     <TouchableOpacity
                         style={[styles.actionButton, isCompact ? styles.actionButtonCompact : styles.actionButtonWide]}
                         className="bg-card border-[0.5px] border-border-light py-4 rounded-[12px] items-center justify-center shadow-sm"
-                        onPress={() => router.push('/record-sale')}
+                        onPress={() => {
+                            hapticLight();
+                            router.push('/record-sale');
+                        }}
                     >
                         <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center mb-2">
                             <Ionicons name="receipt-outline" size={20} color="#2ecc71" />
@@ -254,7 +264,10 @@ export default function HomeScreen({ onNavigateToSettings }: { onNavigateToSetti
                     <TouchableOpacity
                         style={[styles.actionButton, isCompact ? styles.actionButtonCompact : styles.actionButtonWide]}
                         className="bg-card border-[0.5px] border-border-light py-4 rounded-[12px] items-center justify-center shadow-sm"
-                        onPress={() => router.push('/record-expense')}
+                        onPress={() => {
+                            hapticLight();
+                            router.push('/record-expense');
+                        }}
                     >
                         <View className="w-10 h-10 rounded-full bg-destructive/10 items-center justify-center mb-2">
                             <Ionicons name="trending-down-outline" size={20} color="#e74c3c" />
@@ -265,7 +278,10 @@ export default function HomeScreen({ onNavigateToSettings }: { onNavigateToSetti
                     <TouchableOpacity
                         style={[styles.actionButton, isCompact ? styles.actionButtonCompact : styles.actionButtonWide]}
                         className="bg-card border-[0.5px] border-border-light py-4 rounded-[12px] items-center justify-center shadow-sm"
-                        onPress={() => router.push('/record-purchase')}
+                        onPress={() => {
+                            hapticLight();
+                            router.push('/record-purchase');
+                        }}
                     >
                         <View className="w-10 h-10 rounded-full bg-info/10 items-center justify-center mb-2">
                             <Ionicons name="cart-outline" size={20} color="#3498db" />
@@ -276,7 +292,10 @@ export default function HomeScreen({ onNavigateToSettings }: { onNavigateToSetti
                     <TouchableOpacity
                         style={[styles.actionButton, isCompact ? styles.actionButtonCompact : styles.actionButtonWide]}
                         className="bg-card border-[0.5px] border-border-light py-4 rounded-[12px] items-center justify-center shadow-sm"
-                        onPress={() => router.push('/dispatch-takeout')}
+                        onPress={() => {
+                            hapticLight();
+                            router.push('/dispatch-takeout');
+                        }}
                     >
                         <View className="w-10 h-10 rounded-full bg-warning/10 items-center justify-center mb-2">
                             <Ionicons name="bicycle-outline" size={20} color="#f39c12" />
@@ -301,7 +320,10 @@ export default function HomeScreen({ onNavigateToSettings }: { onNavigateToSetti
                                     <TouchableOpacity
                                         key={session.id}
                                         className="flex-row items-center justify-between bg-card border-[0.5px] border-warning/50 p-4 rounded-[12px] shadow-sm"
-                                        onPress={() => router.push({ pathname: '/reconcile-takeout', params: { id: session.id } })}
+                                        onPress={() => {
+                                            hapticLight();
+                                            router.push({ pathname: '/reconcile-takeout', params: { id: session.id } });
+                                        }}
                                     >
                                         <View className="flex-row items-center gap-3 flex-1 mr-2">
                                             <View className="w-10 h-10 rounded-full bg-warning/10 items-center justify-center">
@@ -334,7 +356,10 @@ export default function HomeScreen({ onNavigateToSettings }: { onNavigateToSetti
                         <Text className="text-[12px] font-bold text-muted-foreground tracking-[1px] uppercase">
                             Recent Activity
                         </Text>
-                        <TouchableOpacity onPress={() => router.push('/ledger')}>
+                        <TouchableOpacity onPress={() => {
+                            hapticLight();
+                            router.push('/ledger');
+                        }}>
                             <Text className="text-[11px] font-bold text-primary uppercase">View Ledger</Text>
                         </TouchableOpacity>
                     </View>
