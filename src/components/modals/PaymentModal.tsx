@@ -1,10 +1,13 @@
 import AppBottomSheet from "@/components/ui/AppBottomSheet";
 import { useApp } from "@/database/AppContext";
+import { useCalculations } from "@/database/CalculationsContext";
+import { getSetting } from "@/database/db";
 import { Ionicons } from "@expo/vector-icons";
 import { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import React, { useEffect, useRef, useState } from "react";
-import { Alert, KeyboardAvoidingView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { KeyboardAvoidingView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import ActionDropdown from "@/components/ui/ActionDropdown";
+import { useCustomAlert } from "@/context/AlertContext";
 
 interface PaymentModalProps {
     visible: boolean;
@@ -19,13 +22,15 @@ export default function PaymentModal({
     type,
     personName,
 }: PaymentModalProps) {
+    const { showAlert } = useCustomAlert();
     const { recordDebtorPayment, recordCreditorPayment, transactions } = useApp();
+    const { cashAvailableToday, mpesaAvailableToday} = useCalculations();
 
     const [payAmount, setPayAmount] = useState("");
     const [payMethod, setPayMethod] = useState<"cash" | "mpesa">("cash");
     const [operant, setOperant] = useState("");
 
-    const staffMembers = Array.from(new Set(transactions.map((t) => t.operant).filter(Boolean))) as string[];
+    const staffMembers = (getSetting("staff_operants") || "John, Jane").split(",").map(s => s.trim());
     const dismissRef = useRef<(() => void) | null>(null);
 
     useEffect(() => {
@@ -38,7 +43,7 @@ export default function PaymentModal({
 
     const handleSave = () => {
         if (!operant.trim()) {
-            Alert.alert(
+            showAlert(
                 "Staff Name Required",
                 "Please enter the name of the staff member handling this payment.",
             );
@@ -46,7 +51,15 @@ export default function PaymentModal({
         }
         const amount = parseFloat(payAmount);
         if (isNaN(amount) || amount <= 0) {
-            Alert.alert("Invalid Amount", "Enter a valid positive amount.");
+            showAlert("Invalid Amount", "Enter a valid positive amount.");
+            return;
+        }
+        if (amount > cashAvailableToday && type === "creditor" && payMethod === "cash"){
+            showAlert("Invalid Amount", "Amount entered is more than cash available.");
+            return;
+        }
+        if (amount > mpesaAvailableToday && type === "creditor" && payMethod === "mpesa"){
+            showAlert("Invalid Amount", "Amount entered is more than mpesa available.");
             return;
         }
 
@@ -59,7 +72,7 @@ export default function PaymentModal({
 
             dismissRef.current?.();
         } catch (error) {
-            Alert.alert(
+            showAlert(
                 "Payment Failed",
                 error instanceof Error ? error.message : "The payment could not be recorded.",
             );

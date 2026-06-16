@@ -52,7 +52,7 @@ export default function OnboardingScreen() {
     };
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: 'var(--background)' }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
             <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
                 <ScrollView
                     contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
@@ -100,7 +100,7 @@ export default function OnboardingScreen() {
                                     <TextInput
                                         className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                                         placeholder="e.g. Mega Diner"
-                                        placeholderTextColor="var(--muted-dark)"
+                                        placeholderTextColor="#a1b0a3"
                                         value={businessNameInput}
                                         onChangeText={setBusinessNameInput}
                                         autoCapitalize="words"

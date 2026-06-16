@@ -35,17 +35,26 @@ export interface TransactionItem {
 
 export interface TakeoutSession {
     id: number;
+    business_day_id: number;
     staffName: string;
     date: string;
     status: "active" | "reconciled";
-    dispatchedItems: string; // JSON string of {mealId, name, qty, price}[]
-    reconciledData?: string; // JSON string of {mealId, unsold, cashSold, creditSold, debtors: {name, amount}[]}[]
+    dispatchedItems: string;
+    changeProvided: number;
+    reconciledData: string | null;
+} // JSON string of {mealId, unsold, cashSold, creditSold, debtors: {name, amount}[]}[]
+
+export interface BusinessDay {
+    id: number;
+    startTime: string;
+    endTime: string | null;
+    status: 'active' | 'closed';
 }
 
 export interface Transaction {
     id: number;
+    business_day_id: number;
     type:
-    | "seed"
     | "sale"
     | "takeaway"
     | "consumed"
@@ -62,6 +71,7 @@ export interface Transaction {
     | "collection"
     | "adjustment"
     | "refund"
+    | "business_loss"
     | "debtor_creation"
     | "creditor_creation";
     title: string;
@@ -181,6 +191,13 @@ export function initDatabase() {
       date TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS business_days (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      startTime TEXT,
+      endTime TEXT,
+      status TEXT DEFAULT 'active'
+    );
+
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT
@@ -192,9 +209,36 @@ export function initDatabase() {
       date TEXT,
       status TEXT,
       dispatchedItems TEXT,
+      changeProvided REAL,
       reconciledData TEXT
     );
   `);
+
+    // Safely create new tables independently in case the bulk exec fails on older DBs
+    try {
+        db.execSync(`
+            CREATE TABLE IF NOT EXISTS business_days (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                startTime TEXT,
+                endTime TEXT,
+                status TEXT DEFAULT 'active'
+            );
+        `);
+    } catch (e) { console.error(e); }
+
+    try {
+        db.execSync(`
+            CREATE TABLE IF NOT EXISTS takeout_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                staffName TEXT,
+                date TEXT,
+                status TEXT,
+                dispatchedItems TEXT,
+                changeProvided REAL,
+                reconciledData TEXT
+            );
+        `);
+    } catch (e) { console.error(e); }
 
     // Safe migrations — add columns if they don't exist yet (idempotent)
     const safeAlter = (sql: string) => {
@@ -211,9 +255,11 @@ export function initDatabase() {
     safeAlter("ALTER TABLE transactions ADD COLUMN createdAt TEXT");
     safeAlter("ALTER TABLE transactions ADD COLUMN updatedBy TEXT");
     safeAlter("ALTER TABLE transactions ADD COLUMN updatedAt TEXT");
+    safeAlter("ALTER TABLE transactions ADD COLUMN business_day_id INTEGER DEFAULT 1");
     safeAlter("ALTER TABLE debtors ADD COLUMN phone TEXT");
     safeAlter("ALTER TABLE creditors ADD COLUMN phone TEXT");
     safeAlter("ALTER TABLE inventory ADD COLUMN imageUri TEXT");
+    safeAlter("ALTER TABLE takeout_sessions ADD COLUMN business_day_id INTEGER DEFAULT 1");
 
     // Seed meals if empty - Now empty by default, meals added via Settings as they're prepared
     // (removed hardcoded meal seed data)
@@ -234,6 +280,17 @@ export function initDatabase() {
             "0",
         ]);
     }
+
+    // Seed first business day if empty
+    const countBusinessDays = db.getFirstSync<{ count: number }>(
+        "SELECT COUNT(*) as count FROM business_days",
+    );
+    if (countBusinessDays && countBusinessDays.count === 0) {
+        db.runSync("INSERT INTO business_days (startTime, status) VALUES (?, ?)", [
+            new Date().toISOString(),
+            "active"
+        ]);
+    }
 }
 
 export function resetDatabase() {
@@ -247,6 +304,7 @@ export function resetDatabase() {
     DROP TABLE IF EXISTS notifications;
     DROP TABLE IF EXISTS settings;
     DROP TABLE IF EXISTS takeout_sessions;
+    DROP TABLE IF EXISTS business_days;
   `);
     initDatabase();
 }
@@ -286,10 +344,15 @@ export function addMeal(
     lowAlert: number,
     image: string,
 ) {
-    db.runSync(
-        "INSERT OR REPLACE INTO meals (name, price, stock, lowAlert, image, isAvailable) VALUES (?, ?, ?, ?, ?, 1)",
-        [name, price, stock, lowAlert, image],
-    );
+    const existing = db.getFirstSync<{ id: number }>("SELECT id FROM meals WHERE name = ?", [name]);
+    if (existing) {
+        updateMealDetails(existing.id, name, price, stock, lowAlert, image);
+    } else {
+        db.runSync(
+            "INSERT INTO meals (name, price, stock, lowAlert, image, isAvailable) VALUES (?, ?, ?, ?, ?, 1)",
+            [name, price, stock, lowAlert, image],
+        );
+    }
 }
 
 export function updateMealDetails(
@@ -326,10 +389,15 @@ export function addInventoryItem(
     imageUri?: string,
 ) {
     const now = new Date().toISOString();
-    db.runSync(
-        "INSERT OR REPLACE INTO inventory (name, stockLevel, unit, price, updatedAt, imageUri) VALUES (?, ?, ?, ?, ?, ?)",
-        [name, stockLevel, unit, price, now, imageUri || null],
-    );
+    const existing = db.getFirstSync<{ id: number }>("SELECT id FROM inventory WHERE name = ?", [name]);
+    if (existing) {
+        updateInventoryStock(existing.id, stockLevel);
+    } else {
+        db.runSync(
+            "INSERT INTO inventory (name, stockLevel, unit, price, updatedAt, imageUri) VALUES (?, ?, ?, ?, ?, ?)",
+            [name, stockLevel, unit, price, now, imageUri || null],
+        );
+    }
 }
 
 export function updateInventoryStock(id: number, newStock: number) {
@@ -357,6 +425,22 @@ export function updateInventoryItemDetails(
 
 // ─── Transactions ─────────────────────────────────────────────────────────────
 
+export function getActiveBusinessDay(): BusinessDay {
+    let bd = db.getFirstSync<BusinessDay>("SELECT * FROM business_days WHERE status = 'active' ORDER BY id DESC LIMIT 1");
+    if (!bd) {
+        // Fallback safety
+        db.runSync("INSERT INTO business_days (startTime, status) VALUES (?, ?)", [new Date().toISOString(), 'active']);
+        bd = db.getFirstSync<BusinessDay>("SELECT * FROM business_days WHERE status = 'active' ORDER BY id DESC LIMIT 1")!;
+    }
+    return bd;
+}
+
+export function closeActiveBusinessDay(): void {
+    const active = getActiveBusinessDay();
+    db.runSync("UPDATE business_days SET status = 'closed', endTime = ? WHERE id = ?", [new Date().toISOString(), active.id]);
+    db.runSync("INSERT INTO business_days (startTime, status) VALUES (?, ?)", [new Date().toISOString(), 'active']);
+}
+
 export function getTransactions(): Transaction[] {
     return db.getAllSync<Transaction>(
         "SELECT * FROM transactions ORDER BY date DESC",
@@ -381,10 +465,11 @@ export function addTransaction(
     items?: { mealName: string; quantity: number; unitPrice: number }[],
 ) {
     const date = new Date().toISOString();
+    const bd = getActiveBusinessDay();
 
     const result = db.runSync(
-        `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, referenceName, operant, createdBy, createdAt, updatedBy, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, referenceName, operant, createdBy, createdAt, updatedBy, updatedAt, business_day_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             type,
             title,
@@ -398,6 +483,7 @@ export function addTransaction(
             date,
             operant || null,
             date,
+            bd.id,
         ],
     );
 
@@ -473,10 +559,11 @@ export function recordCollection(
 ) {
     if (amount <= 0) return;
     const date = new Date().toISOString();
+    const bd = getActiveBusinessDay();
     const methodLabel = paymentMethod === "mpesa" ? "M-Pesa" : "Cash";
     db.runSync(
-        `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, referenceName, operant, createdBy, createdAt, updatedBy, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, referenceName, operant, createdBy, createdAt, updatedBy, updatedAt, business_day_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             "collection",
             `${methodLabel} Collection`,
@@ -490,9 +577,10 @@ export function recordCollection(
             date,
             staffHandingOver,
             date,
+            bd.id,
         ],
     );
-    
+
     addNotification(
         `${methodLabel} Collected`,
         `KES ${amount.toLocaleString()} ${methodLabel} handed to collector ${collectorName} by ${staffHandingOver}.`,
@@ -517,10 +605,11 @@ export function recordOpeningBalance(
 ) {
     if (amount <= 0) return;
     const date = new Date().toISOString();
+    const bd = getActiveBusinessDay();
     const methodLabel = paymentMethod === "mpesa" ? "M-Pesa" : "Cash";
     db.runSync(
-        `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, referenceName, operant, createdBy, createdAt, updatedBy, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, referenceName, operant, createdBy, createdAt, updatedBy, updatedAt, business_day_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             "opening_balance",
             `${methodLabel} Opening Balance`,
@@ -534,14 +623,15 @@ export function recordOpeningBalance(
             date,
             operant,
             date,
+            bd.id,
         ],
     );
-    
+
     // Also update the setting for backward compatibility
     if (paymentMethod === "cash") {
         updateSetting("opening_balance", amount.toString());
     }
-    
+
     addNotification(
         `${methodLabel} Opening Balance Recorded`,
         `KES ${amount.toLocaleString()} ${methodLabel} opening balance recorded by ${operant}.`,
@@ -568,15 +658,21 @@ export function closeDay(
 
     const collectorText = collector ? ` | Cash collected by ${collector}` : "";
 
+    const bd = getActiveBusinessDay();
     db.runSync(
-        `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, referenceName, operant)
-     VALUES ('day_close', 'Day Closed — B/F', ?, ?, 'none', ?, ?, ?)`,
+        `INSERT INTO transactions (type, title, description, amount, paymentMethod, date, referenceName, operant, createdBy, createdAt, updatedBy, updatedAt, business_day_id)
+     VALUES ('day_close', 'Day Closed — B/F', ?, ?, 'none', ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             `Opening Balance: KES ${openingBalance.toLocaleString()} | Total Sales: KES ${totalSales.toLocaleString()} | Total Expenses: KES ${totalExpenses.toLocaleString()}${collectorText}`,
             netBalance,
             date,
             collector || null,
             operant,
+            operant,
+            date,
+            operant,
+            date,
+            bd.id,
         ],
     );
 
@@ -641,7 +737,7 @@ export function clearDebtor(id: number) {
             // Do not delete historical debtor records. A manual clearance is an
             // accounting correction, so it must leave an adjustment transaction.
             addTransaction(
-                "adjustment",
+                balance > 0 ? "business_loss" : "adjustment",
                 `Debtor Adjustment — ${debtor.name}`,
                 `${balance > 0 ? "DEBTOR_WRITE_OFF" : "CUSTOMER_CREDIT_WRITE_OFF"}: Manual debtor clearance. Previous balance: KES ${balance.toLocaleString()}`,
                 Math.abs(balance),
@@ -665,6 +761,40 @@ export function clearDebtor(id: number) {
     }
 }
 
+export function clearCreditor(id: number) {
+    const creditor = db.getFirstSync<Creditor>("SELECT * FROM creditors WHERE id = ?", [
+        id,
+    ]);
+    if (creditor) {
+        const balance = creditor.totalOwed - creditor.totalPaid;
+
+        if (balance !== 0) {
+            // Do not delete historical creditor records.
+            addTransaction(
+                balance > 0 ? "adjustment" : "business_loss", // If we owed them, writing it off is a gain (adjustment). If they overpaid, it's a loss.
+                `Creditor Adjustment — ${creditor.name}`,
+                `${balance > 0 ? "CREDITOR_WRITE_OFF" : "SUPPLIER_CREDIT_WRITE_OFF"}: Manual creditor clearance. Previous balance: KES ${balance.toLocaleString()}`,
+                Math.abs(balance),
+                "none",
+                creditor.name,
+                "System",
+            );
+
+            if (balance > 0) {
+                updateCreditor(creditor.name, 0, balance);
+            } else {
+                updateCreditor(creditor.name, Math.abs(balance), 0);
+            }
+        }
+
+        addNotification(
+            "Account Cleared",
+            `Creditor account for ${creditor.name} was successfully cleared.`,
+            "general",
+        );
+    }
+}
+
 // ─── Balance Calculations from Transactions (Source of Truth) ───────────────
 
 export function calculateDebtorBalanceFromTransactions(debtorName: string): number {
@@ -672,7 +802,7 @@ export function calculateDebtorBalanceFromTransactions(debtorName: string): numb
         "SELECT * FROM transactions WHERE referenceName = ? AND type IN ('sale', 'debtor_payment', 'adjustment')",
         [debtorName]
     );
-    
+
     let balance = 0;
     transactions.forEach(t => {
         if (t.type === 'sale' && t.paymentMethod === 'credit') {
@@ -685,7 +815,7 @@ export function calculateDebtorBalanceFromTransactions(debtorName: string): numb
             balance += t.amount; // Manual clearance reduces customer credit
         }
     });
-    
+
     return balance;
 }
 
@@ -694,7 +824,7 @@ export function calculateCreditorBalanceFromTransactions(creditorName: string): 
         "SELECT * FROM transactions WHERE referenceName = ? AND type IN ('credited_purchase', 'purchase', 'creditor_payment')",
         [creditorName]
     );
-    
+
     let balance = 0;
     transactions.forEach(t => {
         if (t.type === 'credited_purchase' || (t.type === 'purchase' && t.paymentMethod === 'credit')) {
@@ -703,7 +833,7 @@ export function calculateCreditorBalanceFromTransactions(creditorName: string): 
             balance -= t.amount; // We paid creditor
         }
     });
-    
+
     return balance;
 }
 
@@ -809,12 +939,13 @@ export function getActiveTakeoutSessions(): TakeoutSession[] {
 export function createTakeoutSession(
     staffName: string,
     items: { mealId: number; name: string; qty: number; price: number }[],
+    change: number,
 ) {
     const date = new Date().toISOString();
+    const bd = getActiveBusinessDay();
     db.runSync(
-        "INSERT INTO takeout_sessions (staffName, date, status, dispatchedItems) VALUES (?, ?, ?, ?)",
-        [staffName, date, "active", JSON.stringify(items)],
-    );
+        "INSERT INTO takeout_sessions (staffName, date, status, dispatchedItems, changeProvided, business_day_id) VALUES (?, ?, ?, ?, ?, ?)",
+        [staffName, date, "active", JSON.stringify(items), change, bd.id]);
 }
 
 export function reconcileTakeoutSession(
@@ -826,3 +957,6 @@ export function reconcileTakeoutSession(
         [reconciledData, sessionId],
     );
 }
+
+// Ensure database is initialized synchronously as soon as this module is loaded
+initDatabase();

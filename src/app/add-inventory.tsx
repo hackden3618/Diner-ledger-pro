@@ -1,16 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Alert, Image, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Image, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '@/database/AppContext';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import ScreenHeader from '@/components/ui/ScreenHeader';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useCustomAlert } from "@/context/AlertContext";
+import { useKeyboard } from '@/hooks/useKeyboard';
 
 export default function AddInventoryScreen() {
+    const { showAlert } = useCustomAlert();
   const { addRawInventoryItem, updateRawInventoryItem, inventoryItems } = useApp();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 12);
+  const isKeyboardVisible = useKeyboard();
   
   const editingItem = id ? inventoryItems.find(i => i.id === parseInt(id, 10)) : undefined;
 
@@ -45,7 +51,7 @@ export default function AddInventoryScreen() {
 
   const handleSave = () => {
     if (!itemName || !stockLevel || !price || !unit) {
-      Alert.alert('Validation Error', 'Please fill in all required fields.');
+      showAlert('Validation Error', 'Please fill in all required fields.');
       return;
     }
     
@@ -53,30 +59,30 @@ export default function AddInventoryScreen() {
     const parsedPrice = parseFloat(price);
     
     if (isNaN(parsedStock) || parsedStock < 0 || isNaN(parsedPrice) || parsedPrice < 0) {
-      Alert.alert('Validation Error', 'Stock and price must be positive numbers.');
+      showAlert('Validation Error', 'Stock and price must be positive numbers.');
       return;
     }
 
     if (editingItem) {
       updateRawInventoryItem(editingItem.id, itemName, parsedStock, unit, parsedPrice, imageUri || undefined);
-      Alert.alert("Success", "Inventory item updated.");
+      showAlert("Success", "Inventory item updated.");
     } else {
       addRawInventoryItem(itemName, parsedStock, unit, parsedPrice, imageUri || undefined);
-      Alert.alert("Success", "Inventory item added.");
+      showAlert("Success", "Inventory item added.");
     }
 
     router.back();
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'var(--background)' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
       <ScreenHeader title={editingItem ? 'Edit Raw Inventory' : 'Add Raw Inventory'} />
       <KeyboardAvoidingView 
         behavior="padding" 
         style={{ flex: 1 }}
       >
         <ScrollView 
-          contentContainerStyle={{ padding: 24, paddingBottom: 100 }} 
+          contentContainerStyle={{ padding: 24, paddingBottom: bottomInset + 104 }} 
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -85,7 +91,7 @@ export default function AddInventoryScreen() {
             <TextInput
               className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
               placeholder="e.g. Wheat Flour, Sugar, Cooking Oil..."
-              placeholderTextColor="var(--muted-dark)"
+              placeholderTextColor="#a1b0a3"
               value={itemName}
               onChangeText={setItemName}
             />
@@ -98,7 +104,7 @@ export default function AddInventoryScreen() {
                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                 placeholder="0"
                 keyboardType="numeric"
-                placeholderTextColor="var(--muted-dark)"
+                placeholderTextColor="#a1b0a3"
                 value={stockLevel}
                 onChangeText={setStockLevel}
               />
@@ -108,7 +114,7 @@ export default function AddInventoryScreen() {
               <TextInput
                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                 placeholder="kg, liters, packets"
-                placeholderTextColor="var(--muted-dark)"
+                placeholderTextColor="#a1b0a3"
                 value={unit}
                 onChangeText={setUnit}
                 autoCapitalize="none"
@@ -122,7 +128,7 @@ export default function AddInventoryScreen() {
               className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
               placeholder="0.00"
               keyboardType="numeric"
-              placeholderTextColor="var(--muted-dark)"
+              placeholderTextColor="#a1b0a3"
               value={price}
               onChangeText={setPrice}
             />
@@ -138,7 +144,7 @@ export default function AddInventoryScreen() {
                 <Image source={{ uri: imageUri }} style={{ width: '100%', height: '100%' }} />
               ) : (
                 <View className="items-center">
-                  <Ionicons name="camera-outline" size={32} color="var(--muted-dark)" />
+                  <Ionicons name="camera-outline" size={32} color="#a1b0a3" />
                   <Text className="text-[10px] text-muted-foreground mt-1">Tap to add</Text>
                 </View>
               )}
@@ -148,14 +154,19 @@ export default function AddInventoryScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <View className="absolute bottom-0 w-full p-6 bg-background/90 border-t border-border-light pt-4">
-        <TouchableOpacity 
-          className="w-full bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm" 
-          onPress={handleSave}
+      {!isKeyboardVisible && (
+        <View
+          className="absolute bottom-0 w-full px-6 bg-background border-t border-border-light pt-4"
+          style={{ paddingBottom: bottomInset }}
         >
-          <Text className="text-[16px] font-bold text-primary-foreground">{editingItem ? 'Save Changes' : 'Add Item'}</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity 
+            className="w-full bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm" 
+            onPress={handleSave}
+          >
+            <Text className="text-[16px] font-bold text-primary-foreground">{editingItem ? 'Save Changes' : 'Add Item'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

@@ -8,7 +8,8 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
-
+.expo-shared/
+*.apk
 # Native
 .kotlin/
 *.orig.*
@@ -18,7 +19,9 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 *.pdf
-
+build/
+*.p12
+*.mobileprovision   
 # Metro
 .metro-health-check*
 

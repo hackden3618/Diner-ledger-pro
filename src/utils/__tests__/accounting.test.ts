@@ -1,16 +1,19 @@
 import { Creditor, Debtor, Transaction } from "@/database/db";
-import { buildTrialBalance } from "../accounting";
+import { buildMoneyLedger, buildTrialBalance, summarizeAccounting } from "../accounting";
 
 const tx = (
-  overrides: Partial<Transaction>,
+  overrides?: Partial<Transaction>,
 ): Transaction => ({
   id: 1,
+  business_day_id: 1,
   type: "sale",
-  title: "Test Transaction",
-  description: "Test",
-  amount: 0,
+  title: "Test Sale",
+  description: "Test Description",
+  amount: 1000,
   paymentMethod: "cash",
-  date: "2026-01-01T08:00:00.000Z",
+  date: "2024-03-20T10:00:00.000Z",
+  createdBy: "Admin",
+  createdAt: "2024-03-20T10:00:00.000Z",
   ...overrides,
 });
 
@@ -105,5 +108,32 @@ describe("accounting trial balance", () => {
         }),
       ]),
     );
+  });
+});
+
+describe("money-in-hand ledger", () => {
+  it("includes M-Pesa movements in ledger and closing balance", () => {
+    const transactions = [
+      tx({ id: 1, type: "opening_balance", amount: 500, paymentMethod: "cash" }),
+      tx({ id: 2, type: "sale", amount: 1200, paymentMethod: "mpesa" }),
+      tx({ id: 3, type: "expense", amount: 200, paymentMethod: "cash" }),
+    ];
+
+    const ledger = buildMoneyLedger(transactions);
+    const summary = summarizeAccounting(transactions, [], []);
+
+    expect(ledger).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          transactionId: 2,
+          account: "Mobile Money",
+          debit: 1200,
+          credit: 0,
+        }),
+      ]),
+    );
+    expect(summary.cashBalance).toBe(300);
+    expect(summary.mpesaBalance).toBe(1200);
+    expect(summary.closingBalance).toBe(1500);
   });
 });

@@ -43,6 +43,8 @@ export type AccountingSummary = {
   closingBalance: number;
   cashIn: number;
   cashOut: number;
+  cashBalance: number;
+  mpesaBalance: number;
   debtorBalance: number;
   creditorBalance: number;
   collectionsTotal: number;
@@ -123,13 +125,17 @@ export function referenceForTransaction(transaction: Transaction): string {
   return `TX-${String(transaction.id).padStart(6, "0")}`;
 }
 
-function isCashMovement(transaction: Transaction): boolean {
-  if (transaction.paymentMethod !== "cash") return false;
+function moneyAccountFor(transaction: Transaction): "Cash on Hand" | "Mobile Money" {
+  return transaction.paymentMethod === "mpesa" ? "Mobile Money" : "Cash on Hand";
+}
+
+function isMoneyMovement(transaction: Transaction): boolean {
+  if (transaction.paymentMethod !== "cash" && transaction.paymentMethod !== "mpesa") return false;
   return moneyInTypes.includes(transaction.type) || moneyOutTypes.includes(transaction.type);
 }
 
-function cashDirection(transaction: Transaction): "debit" | "credit" | "none" {
-  if (!isCashMovement(transaction)) return "none";
+function moneyDirection(transaction: Transaction): "debit" | "credit" | "none" {
+  if (!isMoneyMovement(transaction)) return "none";
   if (moneyInTypes.includes(transaction.type)) return "debit";
   if (moneyOutTypes.includes(transaction.type)) return "credit";
   return "none";
@@ -140,13 +146,13 @@ function ledgerDescription(transaction: Transaction): string {
   return `${transaction.title}${entity}${transaction.description ? ` — ${transaction.description}` : ""}`;
 }
 
-export function buildCashLedger(transactions: Transaction[]): LedgerLine[] {
+export function buildMoneyLedger(transactions: Transaction[]): LedgerLine[] {
   let runningBalance = 0;
 
   return sortTransactionsChronologically(transactions)
-    .filter((transaction) => cashDirection(transaction) !== "none")
+    .filter((transaction) => moneyDirection(transaction) !== "none")
     .map((transaction) => {
-      const direction = cashDirection(transaction);
+      const direction = moneyDirection(transaction);
       const debit = direction === "debit" ? transaction.amount : 0;
       const credit = direction === "credit" ? transaction.amount : 0;
       runningBalance += debit - credit;
@@ -160,12 +166,16 @@ export function buildCashLedger(transactions: Transaction[]): LedgerLine[] {
         debit,
         credit,
         runningBalance,
-        account: "Cash on Hand",
+        account: moneyAccountFor(transaction),
         paymentMethod: transaction.paymentMethod,
         entity: transaction.referenceName,
         createdBy: transaction.createdBy || transaction.operant,
       };
     });
+}
+
+export function buildCashLedger(transactions: Transaction[]): LedgerLine[] {
+  return buildMoneyLedger(transactions).filter((line) => line.paymentMethod === "cash");
 }
 
 function pushJournalPair(
@@ -384,9 +394,15 @@ export function summarizeAccounting(
   debtors: Debtor[],
   creditors: Creditor[],
 ): AccountingSummary {
-  const ledger = buildCashLedger(transactions);
+  const ledger = buildMoneyLedger(transactions);
   const cashIn = ledger.reduce((sum, line) => sum + line.debit, 0);
   const cashOut = ledger.reduce((sum, line) => sum + line.credit, 0);
+  const cashBalance = ledger
+    .filter((line) => line.paymentMethod === "cash")
+    .reduce((sum, line) => sum + line.debit - line.credit, 0);
+  const mpesaBalance = ledger
+    .filter((line) => line.paymentMethod === "mpesa")
+    .reduce((sum, line) => sum + line.debit - line.credit, 0);
   const openingBalance = transactions
     .filter((transaction) => transaction.type === "opening_balance")
     .reduce((sum, transaction) => sum + transaction.amount, 0);
@@ -398,6 +414,8 @@ export function summarizeAccounting(
     closingBalance: cashIn - cashOut,
     cashIn,
     cashOut,
+    cashBalance,
+    mpesaBalance,
     debtorBalance: debtors.reduce((sum, debtor) => sum + debtor.totalOwed - debtor.totalPaid, 0),
     creditorBalance: creditors.reduce((sum, creditor) => sum + creditor.totalOwed - creditor.totalPaid, 0),
     collectionsTotal: transactions
@@ -405,19 +423,19 @@ export function summarizeAccounting(
       .reduce((sum, transaction) => sum + transaction.amount, 0),
     dailyTotals: {
       cashSales: transactions
-        .filter((transaction) => transaction.type === "sale" && transaction.paymentMethod === "cash")
+        .filter((transaction) => transaction.type === "sale" && (transaction.paymentMethod === "cash" || transaction.paymentMethod === "mpesa"))
         .reduce((sum, transaction) => sum + transaction.amount, 0),
       debtorPayments: transactions
-        .filter((transaction) => transaction.type === "debtor_payment" && transaction.paymentMethod === "cash")
+        .filter((transaction) => transaction.type === "debtor_payment" && (transaction.paymentMethod === "cash" || transaction.paymentMethod === "mpesa"))
         .reduce((sum, transaction) => sum + transaction.amount, 0),
       purchasePayments: transactions
-        .filter((transaction) => transaction.type === "purchase" && transaction.paymentMethod === "cash")
+        .filter((transaction) => transaction.type === "purchase" && (transaction.paymentMethod === "cash" || transaction.paymentMethod === "mpesa"))
         .reduce((sum, transaction) => sum + transaction.amount, 0),
       expenses: transactions
-        .filter((transaction) => transaction.type === "expense" && transaction.paymentMethod === "cash")
+        .filter((transaction) => transaction.type === "expense" && (transaction.paymentMethod === "cash" || transaction.paymentMethod === "mpesa"))
         .reduce((sum, transaction) => sum + transaction.amount, 0),
       creditorPayments: transactions
-        .filter((transaction) => transaction.type === "creditor_payment" && transaction.paymentMethod === "cash")
+        .filter((transaction) => transaction.type === "creditor_payment" && (transaction.paymentMethod === "cash" || transaction.paymentMethod === "mpesa"))
         .reduce((sum, transaction) => sum + transaction.amount, 0),
       collections: transactions
         .filter((transaction) => transaction.type === "collection")

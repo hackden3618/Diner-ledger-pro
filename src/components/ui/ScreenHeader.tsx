@@ -13,13 +13,13 @@ export default function ScreenHeader({ title, subtitle, showBackButton = true }:
   const router = useRouter();
 
   return (
-    <View className="flex-row items-center px-4 pt-4 pb-2 border-b border-border-light bg-background/80">
+    <View className="flex-row items-center px-4 py-1 border-b border-border-light bg-background/80">
       {showBackButton && (
         <TouchableOpacity 
           className="w-10 h-10 rounded-full items-center justify-center bg-card border border-border"
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={20} color="var(--foreground)" />
+          <Ionicons name="arrow-back" size={20} color="#1a1c1a" />
         </TouchableOpacity>
       )}
       

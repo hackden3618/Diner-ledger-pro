@@ -1,17 +1,23 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Alert, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { useApp } from '@/database/AppContext';
 import { getSetting } from '@/database/db';
 import { useRouter } from 'expo-router';
+import { useKeyboard } from '@/hooks/useKeyboard';
 import ScreenHeader from '@/components/ui/ScreenHeader';
 import ActionDropdown from '@/components/ui/ActionDropdown';
 import ProductImage from '@/components/ui/ProductImage';
 import InfoAlert from '@/components/ui/InfoAlert';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useCustomAlert } from "@/context/AlertContext";
 
 export default function RecordSaleScreen() {
+    const { showAlert } = useCustomAlert();
     const { meals, recordSale, transactions } = useApp();
     const router = useRouter();
+    const insets = useSafeAreaInsets();
+    const bottomInset = Math.max(insets.bottom, 12);
+    const isKeyboardVisible = useKeyboard();
 
     const [operant, setOperant] = useState("");
     const [selectedSaleItems, setSelectedSaleItems] = useState<{ [mealId: number]: number }>({});
@@ -48,7 +54,7 @@ export default function RecordSaleScreen() {
 
     const handleRecordSaleSave = () => {
         if (!operant.trim()) {
-            Alert.alert("Staff Member Required", "Please select the staff member before saving.");
+            showAlert("Staff Member Required", "Please select the staff member before saving.");
             return;
         }
 
@@ -61,30 +67,30 @@ export default function RecordSaleScreen() {
             });
 
         if (saleItems.length === 0) {
-            Alert.alert("Empty Cart", "Select at least one meal and specify the quantity.");
+            showAlert("Empty Cart", "Select at least one meal and specify the quantity.");
             return;
         }
 
         if (saleType === "credit" && !saleReferenceName.trim()) {
-            Alert.alert("Debtor Name Required", "Specify the debtor name for a credit sale.");
+            showAlert("Debtor Name Required", "Specify the debtor name for a credit sale.");
             return;
         }
 
         if (saleType === "consumed" && !consumedDescription.trim()) {
-            Alert.alert("Description Required", "Please provide a description for the internal consumption.");
+            showAlert("Description Required", "Please provide a description for the internal consumption.");
             return;
         }
 
         const amtPaid = parseFloat(saleAmountPaid);
         // Require customer name for underpayment (paid less than required)
         if (!isNaN(amtPaid) && amtPaid >= 0 && amtPaid < runningTotal && !saleReferenceName.trim() && saleType === "dinein") {
-            Alert.alert("Customer Name Required", "Customer underpaid. Please provide their name to register the debt.");
+            showAlert("Customer Name Required", "Customer underpaid. Please provide their name to register the debt.");
             return;
         }
 
         // Require customer name for overpayment (paid more than required)
         if (!isNaN(amtPaid) && amtPaid > runningTotal && !saleReferenceName.trim() && saleType === "dinein") {
-            Alert.alert("Customer Name Required", "Customer overpaid. Please provide their name to register the credit.");
+            showAlert("Customer Name Required", "Customer overpaid. Please provide their name to register the credit.");
             return;
         }
 
@@ -92,11 +98,11 @@ export default function RecordSaleScreen() {
             const dbMeal = meals.find((m) => m.id === item.mealId);
             if (!dbMeal) continue;
             if (item.qty <= 0 || isNaN(item.qty)) {
-                Alert.alert("Invalid Quantity", "Quantities must be positive numbers.");
+                showAlert("Invalid Quantity", "Quantities must be positive numbers.");
                 return;
             }
             if (item.qty > dbMeal.stock) {
-                Alert.alert("Stock Exceeded", `Cannot sell ${item.qty} of ${item.name}. Only ${dbMeal.stock} in stock.`);
+                showAlert("Stock Exceeded", `Cannot sell ${item.qty} of ${item.name}. Only ${dbMeal.stock} in stock.`);
                 return;
             }
         }
@@ -115,11 +121,11 @@ export default function RecordSaleScreen() {
                 consumedDescription.trim() || undefined
             );
 
-            Alert.alert("Transaction Successful", "Sale recorded successfully.", [
+            showAlert("Transaction Successful", "Sale recorded successfully.", [
                 { text: "OK", onPress: () => router.back() }
             ]);
         } catch (error) {
-            Alert.alert(
+            showAlert(
                 "Transaction Failed",
                 error instanceof Error ? error.message : "The sale could not be recorded.",
             );
@@ -127,14 +133,14 @@ export default function RecordSaleScreen() {
     };
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: 'var(--background)' }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
             <ScreenHeader title="Record Transaction" subtitle="Log sales, credit, takeaway, or internal consumption" />
             <KeyboardAvoidingView
                 behavior="padding"
                 style={{ flex: 1 }}
             >
                 <ScrollView
-                    contentContainerStyle={{ padding: 24, paddingBottom: 100 }}
+                    contentContainerStyle={{ padding: 24, paddingBottom: bottomInset + 136 }}
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
                 >
@@ -190,7 +196,7 @@ export default function RecordSaleScreen() {
                                                 value={currentQty > 0 ? currentQty.toString() : ""}
                                                 onChangeText={(text) => handleSetQuantity(meal.id, meal.stock, text)}
                                                 placeholder="0"
-                                                placeholderTextColor="var(--muted-dark)"
+                                                placeholderTextColor="#a1b0a3"
                                             />
                                             <TouchableOpacity
                                                 className={`w-[32px] h-[32px] rounded-[8px] items-center justify-center ${atMax ? 'bg-muted opacity-50' : 'bg-primary shadow-sm'}`}
@@ -234,7 +240,7 @@ export default function RecordSaleScreen() {
                             <TextInput
                                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                                 placeholder="Enter customer name..."
-                                placeholderTextColor="var(--muted-dark)"
+                                placeholderTextColor="#a1b0a3"
                                 value={saleReferenceName}
                                 onChangeText={setSaleReferenceName}
                                 autoCapitalize="words"
@@ -249,8 +255,8 @@ export default function RecordSaleScreen() {
                             <Text className="text-[11px] font-bold text-muted-foreground tracking-[1px] mb-2 uppercase">Description (Required)</Text>
                             <TextInput
                                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
-                                placeholder="Who consumed this and why?"
-                                placeholderTextColor="var(--muted-dark)"
+                                placeholder="e.g Kanyiri, breakfast..."
+                                placeholderTextColor="#a1b0a3"
                                 value={consumedDescription}
                                 onChangeText={setConsumedDescription}
                                 autoCapitalize="sentences"
@@ -279,7 +285,7 @@ export default function RecordSaleScreen() {
                             <TextInput
                                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                                 placeholder={`e.g. ${runningTotal || 0}`}
-                                placeholderTextColor="var(--muted-dark)"
+                                placeholderTextColor="#a1b0a3"
                                 keyboardType="numeric"
                                 value={saleAmountPaid}
                                 onChangeText={setSaleAmountPaid}
@@ -304,7 +310,7 @@ export default function RecordSaleScreen() {
                                     <TextInput
                                         className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                                         placeholder="Enter customer name..."
-                                        placeholderTextColor="var(--muted-dark)"
+                                        placeholderTextColor="#a1b0a3"
                                         value={saleReferenceName}
                                         onChangeText={setSaleReferenceName}
                                         autoCapitalize="words"
@@ -317,18 +323,23 @@ export default function RecordSaleScreen() {
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            <View className="absolute bottom-0 w-full bg-background/95 border-t border-border-light pt-4 pb-6 px-6 shadow-lg">
-                <View className="flex-row justify-between items-center mb-4 px-2">
-                    <Text className="text-[13px] text-muted-foreground uppercase tracking-[1px]">Total Due</Text>
-                    <Text className="text-[20px] font-bold text-primary">KES {runningTotal.toLocaleString()}</Text>
-                </View>
-                <TouchableOpacity
-                    className="w-full bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm"
-                    onPress={handleRecordSaleSave}
+            {!isKeyboardVisible && (
+                <View
+                    className="absolute bottom-0 w-full bg-background border-t border-border-light pt-4 px-6 shadow-lg"
+                    style={{ paddingBottom: bottomInset }}
                 >
-                    <Text className="text-[16px] font-bold text-primary-foreground">Save Transaction</Text>
-                </TouchableOpacity>
-            </View>
+                    <View className="flex-row justify-between items-center mb-4 px-2">
+                        <Text className="text-[13px] text-muted-foreground uppercase tracking-[1px]">Total Due</Text>
+                        <Text className="text-[20px] font-bold text-primary">KES {runningTotal.toLocaleString()}</Text>
+                    </View>
+                    <TouchableOpacity
+                        className="w-full bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm"
+                        onPress={handleRecordSaleSave}
+                    >
+                        <Text className="text-[16px] font-bold text-primary-foreground">Save Transaction</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
         </SafeAreaView>
     );
 }

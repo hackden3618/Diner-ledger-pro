@@ -1,16 +1,24 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Alert, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { useApp } from '@/database/AppContext';
+import { useCalculations } from '@/database/CalculationsContext';
 import { getSetting } from '@/database/db';
 import { useRouter } from 'expo-router';
+import { useKeyboard } from '@/hooks/useKeyboard';
 import ScreenHeader from '@/components/ui/ScreenHeader';
 import ActionDropdown from '@/components/ui/ActionDropdown';
 import InfoAlert from '@/components/ui/InfoAlert';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useCustomAlert } from "@/context/AlertContext";
 
 export default function RecordPurchaseScreen() {
+    const { showAlert } = useCustomAlert();
     const { recordPurchase, recordCreditorPayment, transactions, creditors } = useApp();
+    const { cashAvailableToday, mpesaAvailableToday } = useCalculations();
     const router = useRouter();
+    const insets = useSafeAreaInsets();
+    const bottomInset = Math.max(insets.bottom, 12);
+    const isKeyboardVisible = useKeyboard();
 
     const [operant, setOperant] = useState('');
     const [supplier, setSupplier] = useState('');
@@ -24,7 +32,7 @@ export default function RecordPurchaseScreen() {
     const paidNum = parseFloat(paidAmount) || 0;
     const unpaidAmount = Math.max(0, expectedNum - paidNum);
     const overpaymentAmount = Math.max(0, paidNum - expectedNum);
-    
+
     // Get current creditor balance for selected supplier
     const currentCreditor = creditors.find(c => c.name === supplier);
     const currentCreditorBalance = currentCreditor ? (currentCreditor.totalOwed - currentCreditor.totalPaid) : 0;
@@ -48,8 +56,20 @@ export default function RecordPurchaseScreen() {
 
     const recordValidatedPurchase = (expectedNum: number, paidNum: number) => {
         const paymentDiff = paidNum - expectedNum;
+        if (paidNum > 0 && paidNum > cashAvailableToday && paymentMethod === 'cash') {
+            showAlert("Invalid Request", "The cash you want to pay is more than what you registered in the system\
+                            \n\nIf you have extra cash, register it as a sale");
+            return;
+        }
+
+        if (paidNum > 0 && paidNum > mpesaAvailableToday && paymentMethod === 'mpesa') {
+            showAlert("Invalid Request", "The mpesa amount you want to pay is more than what you registered in the system\
+                            \n\nIf you have extra money, register it as a sale");
+            return;
+        }
 
         try {
+
             if (paymentDiff === 0) {
                 // Full payment - record purchase with actual payment method
                 recordPurchase(
@@ -82,7 +102,7 @@ export default function RecordPurchaseScreen() {
                 }
             }
 
-            Alert.alert(
+            showAlert(
                 "Purchase Recorded",
                 `KES ${expectedNum.toLocaleString()} expense logged for ${itemDescription.trim()}.\n${paymentDiff < 0
                     ? `Unpaid KES ${Math.abs(paymentDiff).toLocaleString()} added to creditors.`
@@ -93,7 +113,7 @@ export default function RecordPurchaseScreen() {
                 [{ text: 'OK', onPress: () => router.back() }]
             );
         } catch (error) {
-            Alert.alert(
+            showAlert(
                 "Purchase Failed",
                 error instanceof Error ? error.message : "The purchase could not be recorded.",
             );
@@ -102,36 +122,36 @@ export default function RecordPurchaseScreen() {
 
     const handleSave = () => {
         if (!operant.trim()) {
-            Alert.alert("Staff Required", "Please select who received the items.");
+            showAlert("Staff Required", "Please select who received the items.");
             return;
         }
         if (!supplier.trim()) {
-            Alert.alert("Supplier Required", "Please select a supplier.");
+            showAlert("Supplier Required", "Please select a supplier.");
             return;
         }
         if (!itemDescription.trim()) {
-            Alert.alert("Description Required", "Please enter what was purchased.");
+            showAlert("Description Required", "Please enter what was purchased.");
             return;
         }
         if (!expectedAmount.trim()) {
-            Alert.alert("Expected Amount Required", "Please enter the expected amount.");
+            showAlert("Expected Amount Required", "Please enter the expected amount.");
             return;
         }
 
         const expectedNum = parseFloat(expectedAmount);
         if (isNaN(expectedNum) || expectedNum <= 0) {
-            Alert.alert("Invalid Amount", "Expected amount must be a positive number.");
+            showAlert("Invalid Amount", "Expected amount must be a positive number.");
             return;
         }
 
         const paidNum = paidAmount.trim() ? parseFloat(paidAmount) : 0;
         if (isNaN(paidNum) || paidNum < 0) {
-            Alert.alert("Invalid Paid Amount", "Paid amount must be a valid number.");
+            showAlert("Invalid Paid Amount", "Paid amount must be a valid number.");
             return;
         }
 
         if (paidNum > expectedNum) {
-            Alert.alert(
+            showAlert(
                 "Confirm Supplier Overpayment",
                 `You entered KES ${paidNum.toLocaleString()} paid against a KES ${expectedNum.toLocaleString()} purchase.\n\nThe extra KES ${(paidNum - expectedNum).toLocaleString()} will be recorded as supplier credit/advance. Confirm this is the correct amount paid.`,
                 [
@@ -150,14 +170,14 @@ export default function RecordPurchaseScreen() {
     };
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: 'var(--background)' }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
             <ScreenHeader title="Record Business Purchase" subtitle="Log goods bought for the business" />
             <KeyboardAvoidingView
                 behavior="padding"
                 style={{ flex: 1 }}
             >
                 <ScrollView
-                    contentContainerStyle={{ padding: 24, paddingBottom: 100 }}
+                    contentContainerStyle={{ padding: 24, paddingBottom: bottomInset + 104 }}
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
                 >
@@ -188,7 +208,7 @@ export default function RecordPurchaseScreen() {
                         <TextInput
                             className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                             placeholder="e.g. Wheat Flour, charcoal..."
-                            placeholderTextColor="var(--muted-dark)"
+                            placeholderTextColor="#a1b0a3"
                             value={itemDescription}
                             onChangeText={setItemDescription}
                         />
@@ -201,7 +221,7 @@ export default function RecordPurchaseScreen() {
                                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                                 placeholder="0.00"
                                 keyboardType="numeric"
-                                placeholderTextColor="var(--muted-dark)"
+                                placeholderTextColor="#a1b0a3"
                                 value={expectedAmount}
                                 onChangeText={setExpectedAmount}
                             />
@@ -212,7 +232,7 @@ export default function RecordPurchaseScreen() {
                                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                                 placeholder="0.00"
                                 keyboardType="numeric"
-                                placeholderTextColor="var(--muted-dark)"
+                                placeholderTextColor="#a1b0a3"
                                 value={paidAmount}
                                 onChangeText={setPaidAmount}
                             />
@@ -252,6 +272,8 @@ export default function RecordPurchaseScreen() {
 
                     <InfoAlert message={
                         <Text>
+                            <Text className='text-warning block'>Cash Balance: <Text className='text-primary'>{(cashAvailableToday).toLocaleString()}</Text>{`\n`}</Text>
+                            <Text className='text-warning block'>M-Pesa Balance: <Text className='text-primary'>{(mpesaAvailableToday).toLocaleString()}</Text>{`\n`}</Text>
                             Any <Text className="font-bold text-foreground">deficit</Text> creates a creditor balance. Any confirmed <Text className="font-bold text-primary">overpayment</Text> creates supplier credit.
                         </Text>
                     } />
@@ -266,7 +288,7 @@ export default function RecordPurchaseScreen() {
                                 <Text className={`text-[14px] font-medium ${paymentMethod === 'cash' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>💵 Cash</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                className={`flex-1 py-4 items-center rounded-[10px] ${paymentMethod === 'mpesa' ? 'bg-card border border-border-strong shadow-sm' : ''}`}
+                                className={`flex-1 py-4 items-center rounded-[10px] ${paymentMethod === 'cash' ? 'bg-card border border-border-strong shadow-sm' : ''}`}
                                 onPress={() => setPaymentMethod('mpesa')}
                             >
                                 <Text className={`text-[14px] font-medium ${paymentMethod === 'mpesa' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>📱 M-Pesa</Text>
@@ -277,14 +299,19 @@ export default function RecordPurchaseScreen() {
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            <View className="absolute bottom-0 w-full p-6 bg-background/90 border-t border-border-light pt-4">
-                <TouchableOpacity
-                    className="w-full bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm"
-                    onPress={handleSave}
+            {!isKeyboardVisible && (
+                <View
+                    className="absolute bottom-0 w-full px-6 bg-background border-t border-border-light pt-4"
+                    style={{ paddingBottom: bottomInset }}
                 >
-                    <Text className="text-[16px] font-bold text-primary-foreground">+ Add Purchase</Text>
-                </TouchableOpacity>
-            </View>
+                    <TouchableOpacity
+                        className="w-full bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm"
+                        onPress={handleSave}
+                    >
+                        <Text className="text-[16px] font-bold text-primary-foreground">+ Add Purchase</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
         </SafeAreaView>
     );
 }

@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Hotel_Inventory",
+    "name": "Diner Ledger",
     "slug": "Hotel_Inventory",
-    "version": "1.0.0",
+    "version": "2.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "hotelinventory",
+    "scheme": "dinerledger",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/images/icon.png"
@@ -43,8 +43,20 @@
         }
       ],
       "expo-font",
+      [
+        "expo-notifications",
+        {
+          "color": "#31CE78"
+        }
+      ],
       "expo-sqlite",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app needs access to your photos to let you set images for meals."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

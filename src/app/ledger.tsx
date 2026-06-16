@@ -1,11 +1,12 @@
 import { useApp } from "@/database/AppContext";
-import { buildCashLedger, buildTrialBalance, summarizeAccounting } from "@/utils/accounting";
+import { buildMoneyLedger, buildTrialBalance, summarizeAccounting } from "@/utils/accounting";
 import { generateLedgerPDF } from "@/utils/pdfGenerator";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
-import { Alert, ScrollView, Text, TouchableOpacity, View, FlatList } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ScrollView, Text, TouchableOpacity, View, FlatList } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import ScreenHeader from "@/components/ui/ScreenHeader";
+import { useCustomAlert } from "@/context/AlertContext";
 
 type Period = "today" | "week" | "month" | "year" | "all";
 
@@ -18,6 +19,7 @@ const PERIOD_LABELS: Record<Period, string> = {
 };
 
 export default function LedgerScreen() {
+    const { showAlert } = useCustomAlert();
     const {
         transactions,
         debtors,
@@ -27,6 +29,8 @@ export default function LedgerScreen() {
         setReportPeriod,
     } = useApp();
     const [generating, setGenerating] = useState(false);
+    const insets = useSafeAreaInsets();
+    const bottomInset = Math.max(insets.bottom, 12);
 
     const filtered = useMemo(() => {
         const now = new Date();
@@ -50,7 +54,7 @@ export default function LedgerScreen() {
         });
     }, [transactions, reportPeriod]);
 
-    const ledgerEntries = useMemo(() => buildCashLedger(filtered), [filtered]);
+    const ledgerEntries = useMemo(() => buildMoneyLedger(filtered), [filtered]);
     const summary = useMemo(
         () => summarizeAccounting(filtered, debtors, creditors),
         [filtered, debtors, creditors],
@@ -74,7 +78,7 @@ export default function LedgerScreen() {
                 summary,
             );
         } catch {
-            Alert.alert(
+            showAlert(
                 "PDF Error",
                 "Could not generate the report. Please try again.",
             );
@@ -112,11 +116,11 @@ export default function LedgerScreen() {
                 </View>
             </ScrollView>
 
-            {/* Cashbook Summary */}
+            {/* Money Ledger Summary */}
             <View className="flex-row gap-2 px-4 py-2">
                 <View className="flex-1 bg-muted rounded-xl p-3 border border-border">
                     <Text className="text-[9px] text-muted-foreground uppercase tracking-widest">
-                        Cash In (Dr)
+                        Money In (Dr)
                     </Text>
                     <Text className="text-[15px] font-bold text-primary mt-0.5">
                         KES {summary.totalDebits.toLocaleString()}
@@ -124,7 +128,7 @@ export default function LedgerScreen() {
                 </View>
                 <View className="flex-1 bg-muted rounded-xl p-3 border border-border">
                     <Text className="text-[9px] text-muted-foreground uppercase tracking-widest">
-                        Cash Out (Cr)
+                        Money Out (Cr)
                     </Text>
                     <Text className="text-[15px] font-bold text-destructive mt-0.5">
                         KES {summary.totalCredits.toLocaleString()}
@@ -134,7 +138,7 @@ export default function LedgerScreen() {
             <View className="mx-4 mb-2 bg-primary/10 border border-primary/20 rounded-xl p-3">
                 <View className="flex-row justify-between items-center">
                     <Text className="text-[10px] text-muted-foreground uppercase tracking-widest">
-                        Closing Cash Balance
+                        Closing Money In Hand
                     </Text>
                     <Text
                         className={`text-[16px] font-bold ${summary.closingBalance >= 0 ? "text-primary" : "text-destructive"
@@ -145,6 +149,9 @@ export default function LedgerScreen() {
                 </View>
                 <Text className="text-[9px] text-muted-foreground mt-1">
                     Trial Balance Dr KES {trialDebitTotal.toLocaleString()} · Cr KES {trialCreditTotal.toLocaleString()}
+                </Text>
+                <Text className="text-[9px] text-muted-foreground mt-1">
+                    Cash KES {summary.cashBalance.toLocaleString()} · M-Pesa KES {summary.mpesaBalance.toLocaleString()}
                 </Text>
             </View>
 
@@ -194,7 +201,7 @@ export default function LedgerScreen() {
     );
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: 'var(--background)' }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
             <ScreenHeader title="Ledger & Trial Balance" subtitle={businessName} />
             <View className="flex-1 w-full bg-background">
                 <FlatList
@@ -259,7 +266,7 @@ export default function LedgerScreen() {
                 />
 
                 {/* PDF Button */}
-                <View className="px-4 pb-8 pt-2 border-t border-border">
+                <View className="px-4 pt-2 border-t border-border" style={{ paddingBottom: bottomInset }}>
                     <TouchableOpacity
                         className={`flex-row items-center justify-center py-3 rounded-[12px] gap-2 ${generating ? "bg-muted" : "bg-primary"
                             }`}

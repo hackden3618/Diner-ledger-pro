@@ -1,17 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Alert, Image, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Image, ScrollView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { useKeyboard } from '@/hooks/useKeyboard';
 import { useApp } from '@/database/AppContext';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import ScreenHeader from '@/components/ui/ScreenHeader';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SEEDED_MENU_IMAGES, isSeededMenuImageKey } from '@/utils/menuItemImages';
+import { useCustomAlert } from "@/context/AlertContext";
 
 export default function AddMealScreen() {
+  const { showAlert } = useCustomAlert();
   const { addNewMeal, updateMeal, deleteMeal, meals } = useApp();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
+  const isKeyboardVisible = useKeyboard();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 12);
   
   const editingMeal = id ? meals.find(m => m.id === parseInt(id, 10)) : undefined;
 
@@ -57,7 +63,7 @@ export default function AddMealScreen() {
 
   const handleAddMealSave = () => {
     if (!newMealName || !newMealPrice || !newMealStock) {
-      Alert.alert('Validation Error', 'Please fill in meal name, price and opening stock.');
+      showAlert('Validation Error', 'Please fill in meal name, price and opening stock.');
       return;
     }
     
@@ -66,7 +72,7 @@ export default function AddMealScreen() {
     const alertLvl = parseInt(newMealAlert, 10) || 10;
     
     if (isNaN(price) || price < 0 || isNaN(stock) || stock < 0 || isNaN(alertLvl) || alertLvl < 0) {
-      Alert.alert('Validation Error', 'Prices and stocks must be positive numbers.');
+      showAlert('Validation Error', 'Prices and stocks must be positive numbers.');
       return;
     }
 
@@ -74,10 +80,10 @@ export default function AddMealScreen() {
 
     if (editingMeal) {
       updateMeal(editingMeal.id, newMealName, price, stock, alertLvl, finalImage);
-      Alert.alert("Success", "Meal updated successfully.");
+      showAlert("Success", "Meal updated successfully.");
     } else {
       addNewMeal(newMealName, price, stock, alertLvl, finalImage);
-      Alert.alert("Success", "Meal added successfully.");
+      showAlert("Success", "Meal added successfully.");
     }
 
     router.back();
@@ -85,7 +91,7 @@ export default function AddMealScreen() {
 
   const handleDeleteMeal = () => {
     if (!editingMeal) return;
-    Alert.alert(
+    showAlert(
       "Delete Menu Item",
       `Are you sure you want to permanently delete ${editingMeal.name}?`,
       [
@@ -103,14 +109,14 @@ export default function AddMealScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'var(--background)' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
       <ScreenHeader title={editingMeal ? 'Edit Menu Item' : 'Add Menu Item'} />
       <KeyboardAvoidingView 
-        behavior="padding" 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
         <ScrollView 
-          contentContainerStyle={{ padding: 24, paddingBottom: 100 }} 
+          contentContainerStyle={{ padding: 24, paddingBottom: 120 }} 
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -119,7 +125,7 @@ export default function AddMealScreen() {
             <TextInput
               className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
               placeholder="e.g. Mandazi, Coffee..."
-              placeholderTextColor="var(--muted-dark)"
+              placeholderTextColor="#a1b0a3"
               value={newMealName}
               onChangeText={setNewMealName}
             />
@@ -132,7 +138,7 @@ export default function AddMealScreen() {
                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                 placeholder="0.00"
                 keyboardType="numeric"
-                placeholderTextColor="var(--muted-dark)"
+                placeholderTextColor="#a1b0a3"
                 value={newMealPrice}
                 onChangeText={setNewMealPrice}
               />
@@ -143,7 +149,7 @@ export default function AddMealScreen() {
                 className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
                 placeholder="200"
                 keyboardType="numeric"
-                placeholderTextColor="var(--muted-dark)"
+                placeholderTextColor="#a1b0a3"
                 value={newMealStock}
                 onChangeText={setNewMealStock}
               />
@@ -156,7 +162,7 @@ export default function AddMealScreen() {
               className="bg-input border-[0.5px] border-border rounded-[12px] text-foreground text-[15px] px-4 py-4"
               placeholder="20"
               keyboardType="numeric"
-              placeholderTextColor="var(--muted-dark)"
+              placeholderTextColor="#a1b0a3"
               value={newMealAlert}
               onChangeText={setNewMealAlert}
             />
@@ -207,33 +213,36 @@ export default function AddMealScreen() {
                       resizeMode="cover"
                     />
                   ) : (
-                    <Ionicons name="camera-outline" size={24} color="var(--muted-dark)" />
+                    <Ionicons name="camera-outline" size={24} color="#a1b0a3" />
                   )}
                 </TouchableOpacity>
               </View>
             </View>
           </View>
-
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Floating Action Button area at bottom */}
-      <View className="absolute bottom-0 w-full px-6 py-4 bg-background/90 border-t border-border-light flex-row gap-3">
-        {editingMeal && (
-          <TouchableOpacity 
-            className="flex-1 bg-destructive/10 border border-destructive/30 rounded-[16px] py-4 items-center justify-center" 
-            onPress={handleDeleteMeal}
-          >
-            <Text className="text-[14px] font-bold text-destructive">Delete Meal</Text>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity 
-          className="flex-[2] bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm" 
-          onPress={handleAddMealSave}
+      {!isKeyboardVisible && (
+        <View
+          className="absolute bottom-0 w-full px-6 pt-4 bg-background border-t border-border-light flex-row gap-3"
+          style={{ paddingBottom: bottomInset }}
         >
-          <Text className="text-[16px] font-bold text-primary-foreground">{editingMeal ? 'Save Changes' : 'Create Meal'}</Text>
-        </TouchableOpacity>
-      </View>
+          {editingMeal && (
+            <TouchableOpacity 
+              className="flex-1 bg-destructive/10 border border-destructive/30 rounded-[16px] py-4 items-center justify-center" 
+              onPress={handleDeleteMeal}
+            >
+              <Text className="text-[14px] font-bold text-destructive">Delete Meal</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity 
+            className="flex-[2] bg-primary rounded-[16px] py-4 items-center justify-center shadow-sm" 
+            onPress={handleAddMealSave}
+          >
+            <Text className="text-[16px] font-bold text-primary-foreground">{editingMeal ? 'Save Changes' : 'Create Meal'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

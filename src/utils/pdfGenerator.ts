@@ -2,7 +2,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Transaction, Debtor, Creditor, getTransactionItems } from '../database/db';
 import { Alert } from 'react-native';
-import { AccountingSummary, buildCashLedger, buildJournalEntries, buildTrialBalance } from './accounting';
+import { AccountingSummary, buildMoneyLedger, buildJournalEntries, buildTrialBalance } from './accounting';
 
 export async function generateLedgerPDF(
   businessName: string,
@@ -12,7 +12,7 @@ export async function generateLedgerPDF(
   periodText: string,
   summary: AccountingSummary
 ) {
-  const ledgerLines = buildCashLedger(transactions);
+  const ledgerLines = buildMoneyLedger(transactions);
   const journalLines = buildJournalEntries(transactions);
   const trialBalanceRows = buildTrialBalance(transactions, debtors, creditors);
 
@@ -144,7 +144,7 @@ export async function generateLedgerPDF(
       <body>
         <div class="header">
           <h1>${businessName}</h1>
-          <p>Professional Accounting Ledger, Cashbook &amp; Journal · Period: ${periodText}</p>
+          <p>Professional Accounting Ledger, Money-in-Hand Ledger &amp; Journal · Period: ${periodText}</p>
           <p style="font-size:10px; margin-top:2px; color:#94a3b8">Generated: ${new Date().toLocaleString('en-KE')}</p>
         </div>
 
@@ -162,15 +162,16 @@ export async function generateLedgerPDF(
             <div class="val" style="color:#d35400">KES ${summary.totalCredits.toLocaleString()}</div>
           </div>
           <div class="summary-card">
-            <div class="lbl">Closing Cash</div>
+            <div class="lbl">Closing Money in Hand</div>
             <div class="val">KES ${summary.closingBalance.toLocaleString()}</div>
+            <div style="font-size:10px; margin-top:3px; color:#64748b">Cash KES ${summary.cashBalance.toLocaleString()} · M-Pesa KES ${summary.mpesaBalance.toLocaleString()}</div>
             <div style="font-size:10px; margin-top:3px">${journalBalanced ? '<span style="color:#27ae60">Journal balanced</span>' : '<span style="color:#e74c3c">Journal variance</span>'}</div>
           </div>
         </div>
 
         <div class="section-title">Daily Totals</div>
         <div class="totals-grid">
-          <div class="mini-card"><span>Cash Sales</span><strong>KES ${summary.dailyTotals.cashSales.toLocaleString()}</strong></div>
+          <div class="mini-card"><span>Paid Sales</span><strong>KES ${summary.dailyTotals.cashSales.toLocaleString()}</strong></div>
           <div class="mini-card"><span>Debtor Payments</span><strong>KES ${summary.dailyTotals.debtorPayments.toLocaleString()}</strong></div>
           <div class="mini-card"><span>Purchase Payments</span><strong>KES ${summary.dailyTotals.purchasePayments.toLocaleString()}</strong></div>
           <div class="mini-card"><span>Expenses</span><strong>KES ${summary.dailyTotals.expenses.toLocaleString()}</strong></div>
@@ -178,7 +179,7 @@ export async function generateLedgerPDF(
           <div class="mini-card"><span>Collections</span><strong>KES ${summary.dailyTotals.collections.toLocaleString()}</strong></div>
         </div>
 
-        <div class="section-title">Cashbook Ledger</div>
+        <div class="section-title">Money-in-Hand Ledger</div>
         <table>
           <thead>
             <tr>
