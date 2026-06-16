@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingVi
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '@/database/AppContext';
+import { getSetting } from '@/database/db';
 import { useRouter } from 'expo-router';
 import ScreenHeader from '@/components/ui/ScreenHeader';
 import ActionDropdown from '@/components/ui/ActionDropdown';
@@ -22,7 +23,7 @@ export default function DispatchTakeoutScreen() {
     const [selectedItems, setSelectedItems] = useState<{ mealId: number; name: string; qty: number; price: number }[]>([]);
 
     const changeProvided = parseFloat(change) || 0;
-    const staffMembers = Array.from(new Set(transactions.map((t) => t.operant).filter(Boolean))) as string[];
+    const staffMembers = (getSetting("staff_operants") || "John, Jane").split(",").map(s => s.trim());
 
     const handleIncrement = (mealId: number, name: string, price: number, stock: number) => {
         setSelectedItems(prev => {
@@ -142,6 +143,7 @@ export default function DispatchTakeoutScreen() {
                             placeholderTextColor="#4a5e4c"
                             value={change}
                             onChangeText={setChange}
+                            keyboardType="numeric"
                         />
                     </View>
 

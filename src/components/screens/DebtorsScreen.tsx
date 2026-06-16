@@ -42,11 +42,15 @@ export default function DebtorsScreen({
                 { text: "Cancel", style: "cancel" },
                 {
                     text: "Write Off", style: "destructive", onPress: () => {
-                        showAlert("Written Off", `The account has been cleared.\nName: ${debtor_name}`)
-                        if (isCreditor) {
-                            clearCreditorAccount(debtor_id);
-                        } else {
-                            clearDebtorAccount(debtor_id);
+                        try {
+                            if (isCreditor) {
+                                clearCreditorAccount(debtor_id);
+                            } else {
+                                clearDebtorAccount(debtor_id);
+                            }
+                            showAlert("Written Off", `The account has been cleared.\nName: ${debtor_name}`);
+                        } catch (error) {
+                            showAlert("Write-Off Failed", error instanceof Error ? error.message : "Could not write off this account.");
                         }
                     }
                 }

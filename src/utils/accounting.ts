@@ -175,7 +175,7 @@ export function buildMoneyLedger(transactions: Transaction[]): LedgerLine[] {
 }
 
 export function buildCashLedger(transactions: Transaction[]): LedgerLine[] {
-  return buildMoneyLedger(transactions);
+  return buildMoneyLedger(transactions).filter((line) => line.paymentMethod === "cash");
 }
 
 function pushJournalPair(

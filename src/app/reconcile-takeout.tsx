@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, ScrollView, useWindowDimensions } from 'react-native';
 import { useApp } from "@/database/AppContext";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -33,8 +33,10 @@ export default function ReconcileTakeoutScreen() {
     const [mpesaAmount, setMpesaAmount] = useState("");
     const [unifiedDebtors, setUnifiedDebtors] = useState<{ name: string; amount: number }[]>([]);
 
+    const initialLoadDone = useRef(false);
+
     useEffect(() => {
-        if (id) {
+        if (id && !initialLoadDone.current) {
             const activeSession = takeoutSessions.find(s => s.id === parseInt(id, 10));
             if (activeSession) {
                 setSession(activeSession);
@@ -53,6 +55,7 @@ export default function ReconcileTakeoutScreen() {
                 const expectedCash = dispatchedItems.reduce((sum: number, item: any) => sum + item.qty * item.price, 0) + (activeSession.changeProvided || 0);
                 setCashAmount(expectedCash.toString());
                 setMpesaAmount("0");
+                initialLoadDone.current = true;
             }
         }
     }, [id, takeoutSessions]);

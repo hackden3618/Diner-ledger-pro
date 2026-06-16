@@ -344,10 +344,15 @@ export function addMeal(
     lowAlert: number,
     image: string,
 ) {
-    db.runSync(
-        "INSERT OR REPLACE INTO meals (name, price, stock, lowAlert, image, isAvailable) VALUES (?, ?, ?, ?, ?, 1)",
-        [name, price, stock, lowAlert, image],
-    );
+    const existing = db.getFirstSync<{ id: number }>("SELECT id FROM meals WHERE name = ?", [name]);
+    if (existing) {
+        updateMealDetails(existing.id, name, price, stock, lowAlert, image);
+    } else {
+        db.runSync(
+            "INSERT INTO meals (name, price, stock, lowAlert, image, isAvailable) VALUES (?, ?, ?, ?, ?, 1)",
+            [name, price, stock, lowAlert, image],
+        );
+    }
 }
 
 export function updateMealDetails(
@@ -384,10 +389,15 @@ export function addInventoryItem(
     imageUri?: string,
 ) {
     const now = new Date().toISOString();
-    db.runSync(
-        "INSERT OR REPLACE INTO inventory (name, stockLevel, unit, price, updatedAt, imageUri) VALUES (?, ?, ?, ?, ?, ?)",
-        [name, stockLevel, unit, price, now, imageUri || null],
-    );
+    const existing = db.getFirstSync<{ id: number }>("SELECT id FROM inventory WHERE name = ?", [name]);
+    if (existing) {
+        updateInventoryStock(existing.id, stockLevel);
+    } else {
+        db.runSync(
+            "INSERT INTO inventory (name, stockLevel, unit, price, updatedAt, imageUri) VALUES (?, ?, ?, ?, ?, ?)",
+            [name, stockLevel, unit, price, now, imageUri || null],
+        );
+    }
 }
 
 export function updateInventoryStock(id: number, newStock: number) {

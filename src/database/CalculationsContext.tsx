@@ -1,6 +1,5 @@
 import { createContext, ReactNode, useContext } from "react";
 import { useApp } from "./AppContext";
-import { getActiveBusinessDay } from "./db";
 
 interface CalculationsProviderType {
     cashInToday: number,
@@ -33,8 +32,7 @@ interface CalculationsProviderType {
 const CalculationsContext = createContext<CalculationsProviderType | undefined>(undefined);
 
 export function CalculationsProvider({ children }: { children: ReactNode }) {
-    const { transactions, debtors, creditors } = useApp();
-    const activeBusinessDay = getActiveBusinessDay();
+    const { transactions, debtors, creditors, activeBusinessDay } = useApp();
 
     // Compute stats for current active business day
     const todayTx = transactions.filter((t) => t.business_day_id === activeBusinessDay.id);
@@ -53,6 +51,7 @@ export function CalculationsProvider({ children }: { children: ReactNode }) {
         .filter(
             (t) =>
                 (t.type === "purchase" && t.paymentMethod === "cash") ||
+                (t.type === "purchase_payment" && t.paymentMethod === "cash") ||
                 (t.type === "expense" && t.paymentMethod === "cash") ||
                 (t.type === "business_loss" && t.paymentMethod === "cash") ||
                 (t.type === "creditor_payment" && t.paymentMethod === "cash") ||
@@ -75,6 +74,7 @@ export function CalculationsProvider({ children }: { children: ReactNode }) {
         .filter(
             (t) =>
                 (t.type === "purchase" && t.paymentMethod === "mpesa") ||
+                (t.type === "purchase_payment" && t.paymentMethod === "mpesa") ||
                 (t.type === "expense" && t.paymentMethod === "mpesa") ||
                 (t.type === "business_loss" && t.paymentMethod === "mpesa") ||
                 (t.type === "creditor_payment" && t.paymentMethod === "mpesa") ||

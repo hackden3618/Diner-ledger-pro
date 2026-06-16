@@ -1,6 +1,6 @@
 import { useApp } from "@/database/AppContext";
 import { useCalculations } from "@/database/CalculationsContext";
-import { getSetting, updateSetting, getMeals } from "@/database/db";
+import { getSetting, updateSetting, getMeals, closeDay } from "@/database/db";
 import React, { useEffect, useState } from "react";
 import { Text, TextInput, TouchableOpacity, View, ScrollView, KeyboardAvoidingView } from "react-native";
 import ScreenHeader from "@/components/ui/ScreenHeader";
@@ -66,7 +66,6 @@ export default function SettingsScreen() {
 
     useEffect(() => {
         setTempBusinessName(businessName);
-        setCloseDayOperant("");
         const savedStaff = getSetting("staff_operants");
         setStaffOperants(savedStaff || "John, Jane");
         const savedSuppliers = getSetting("suppliers");
@@ -233,7 +232,7 @@ export default function SettingsScreen() {
                     text: "End Day",
                     style: "destructive",
                     onPress: () => {
-                        import('@/database/db').then(({ closeDay }) => {
+                        try {
                             closeDay(
                                 openingBalanceToday,
                                 totalSalesToday,
@@ -244,7 +243,9 @@ export default function SettingsScreen() {
                             );
                             closeBusinessDay();
                             showAlert("Business Day Closed", "A new business day has officially started. Meal stocks have been reset to 0. \n\nPlease note: Any money left over for the new day should be explicitly entered via 'Inject Seed Money'.");
-                        });
+                        } catch (error) {
+                            showAlert("Close Failed", error instanceof Error ? error.message : "Could not close business day.");
+                        }
                     }
                 }
             ]

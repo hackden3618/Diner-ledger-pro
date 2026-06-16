@@ -54,13 +54,13 @@ export default function RecordPurchaseScreen() {
 
     const recordValidatedPurchase = (expectedNum: number, paidNum: number) => {
         const paymentDiff = paidNum - expectedNum;
-        if (paidNum > cashAvailableToday && paymentMethod === 'cash') {
+        if (paidNum > 0 && paidNum > cashAvailableToday && paymentMethod === 'cash') {
             showAlert("Invalid Request", "The cash you want to pay is more than what you registered in the system\
                             \n\nIf you have extra cash, register it as a sale");
             return;
         }
 
-        if (paidNum > mpesaAvailableToday && paymentMethod === 'mpesa') {
+        if (paidNum > 0 && paidNum > mpesaAvailableToday && paymentMethod === 'mpesa') {
             showAlert("Invalid Request", "The mpesa amount you want to pay is more than what you registered in the system\
                             \n\nIf you have extra money, register it as a sale");
             return;
@@ -283,10 +283,10 @@ export default function RecordPurchaseScreen() {
                                 className={`flex-1 py-4 items-center rounded-[10px] ${paymentMethod === 'cash' ? 'bg-card border border-border-strong shadow-sm' : ''}`}
                                 onPress={() => setPaymentMethod('cash')}
                             >
-                                <Text className={`text-[14px] font-medium ${paymentMethod === 'mpesa' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>💵 Cash</Text>
+                                <Text className={`text-[14px] font-medium ${paymentMethod === 'cash' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>💵 Cash</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                className={`flex-1 py-4 items-center rounded-[10px] ${paymentMethod === 'mpesa' ? 'bg-card border border-border-strong shadow-sm' : ''}`}
+                                className={`flex-1 py-4 items-center rounded-[10px] ${paymentMethod === 'cash' ? 'bg-card border border-border-strong shadow-sm' : ''}`}
                                 onPress={() => setPaymentMethod('mpesa')}
                             >
                                 <Text className={`text-[14px] font-medium ${paymentMethod === 'mpesa' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>📱 M-Pesa</Text>

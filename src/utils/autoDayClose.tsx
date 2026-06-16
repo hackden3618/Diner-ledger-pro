@@ -20,10 +20,10 @@ export function useAutoDayClose() {
             if (activeStartStr !== todayStr) {
                 // The active business day started on a previous literal day
                 const lastPrompted = getSetting("last_forgotten_close_prompt");
-                
+
                 if (lastPrompted !== todayStr) {
                     updateSetting("last_forgotten_close_prompt", todayStr);
-                    
+
                     // Show in-app alert
                     showAlert(
                         "Business Day Open",

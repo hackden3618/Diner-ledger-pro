@@ -12,7 +12,7 @@ export default function TransactionsScreen() {
     return (
         <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
                 <ScreenHeader title="Transactions" subtitle="Quickly view all the recent transactions" showBackButton={false} />
-                <View className='fixed'>
+                <View className="px-4">
                     <View className="flex-row items-center mt-1 bg-muted border-[0.5px] border-border-strong rounded-[10px] px-3 py-2 mb-[10px]">
                         <Ionicons name="search" size={18} color="#6b7a6d" />
                         <TextInput

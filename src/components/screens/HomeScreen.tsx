@@ -14,7 +14,7 @@ import { useApp } from "@/database/AppContext";
 import { useCalculations } from "@/database/CalculationsContext";
 
 export default function HomeScreen() {
-    const { transactions, takeoutSessions, debtors, creditors } = useApp();
+    const { transactions, takeoutSessions, debtors, creditors, businessName, unreadNotifsCount } = useApp();
     const {
         totalSalesToday,
         grossProfitToday,
@@ -43,10 +43,7 @@ export default function HomeScreen() {
         else setGreeting('Good Evening');
     }, []);
 
-    type TabName = 'home' | 'transactions' | 'inventory' | 'debtors' | 'settings';
-    const [currentTab, setCurrentTab] = useState<TabName>('home');
 
-    const { businessName, unreadNotifsCount } = useApp();
     return (
 
         <>
@@ -68,7 +65,7 @@ export default function HomeScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                         className="w-10 h-10 rounded-[14px] bg-primary/10 border-[0.5px] border-primary/20 items-center justify-center"
-                        onPress={() => setCurrentTab('settings')}
+                        onPress={() => router.push('/settings')}
                     >
                         <Text className="text-[14px] font-bold text-primary">
                             {businessName.substring(0, 2).toUpperCase()}

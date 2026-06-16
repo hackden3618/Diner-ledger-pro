@@ -1,6 +1,7 @@
 import AppBottomSheet from "@/components/ui/AppBottomSheet";
 import { useApp } from "@/database/AppContext";
 import { useCalculations } from "@/database/CalculationsContext";
+import { getSetting } from "@/database/db";
 import { Ionicons } from "@expo/vector-icons";
 import { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import React, { useEffect, useRef, useState } from "react";
@@ -29,7 +30,7 @@ export default function PaymentModal({
     const [payMethod, setPayMethod] = useState<"cash" | "mpesa">("cash");
     const [operant, setOperant] = useState("");
 
-    const staffMembers = Array.from(new Set(transactions.map((t) => t.operant).filter(Boolean))) as string[];
+    const staffMembers = (getSetting("staff_operants") || "John, Jane").split(",").map(s => s.trim());
     const dismissRef = useRef<(() => void) | null>(null);
 
     useEffect(() => {
