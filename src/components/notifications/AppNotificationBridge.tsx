@@ -4,9 +4,11 @@ import {
   registerForPushNotificationsAsync,
   scheduleLocalBusinessAlert,
 } from "@/premium/notifications/notificationService";
+import { useAutoDayClose } from "@/utils/autoDayClose";
 
 export default function AppNotificationBridge() {
   const { businessName, meals, debtors, creditors, transactions } = useApp();
+  useAutoDayClose();
 
   useEffect(() => {
     registerForPushNotificationsAsync(businessName).catch((error) => {

@@ -11,7 +11,7 @@ import InfoAlert from '@/components/ui/InfoAlert';
 
 export default function RecordExpenseScreen() {
     const { recordExpense, transactions } = useApp();
-    const { cashAvailableToday, mpesaAvailableToday, moneyInHouse } = useCalculations();
+    const { cashAvailableToday, mpesaAvailableToday } = useCalculations();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const bottomInset = Math.max(insets.bottom, 12);
@@ -141,7 +141,7 @@ export default function RecordExpenseScreen() {
                         <Text>
                             <Text className='text-warning block'>Cash Balance: <Text className='text-primary'>{(cashAvailableToday).toLocaleString()}</Text>{`\n`}</Text>
                             <Text className='text-warning block'>M-Pesa Balance: <Text className='text-primary'>{(mpesaAvailableToday).toLocaleString()}</Text>{`\n`}</Text>
-                            <Text>If the balances can't pay for the items and you expend on credit, record a credit purchase.</Text>
+                            <Text>If the balances cannot pay for the items and you expend on credit, record a credit purchase.</Text>
                         </Text>
                     } />
 

@@ -423,6 +423,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     );
                     refreshAll();
                     return;
+                } else {
+                    throw new Error("Customer name is required for underpayments.");
                 }
             }
 
@@ -430,13 +432,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             if (saleType === "dinein" && paidAmount !== undefined && paidAmount > totalAmt) {
                 const overpayAmount = paidAmount - totalAmt;
                 if (referenceName && referenceName.trim() !== "") {
-                    // Customer overpaid - record full sale and create negative debtor balance
-                    // Double-entry: Debit Cash/M-Pesa (amountPaid), Credit Sales Revenue (totalAmt)
-                    // Create negative debtor balance (we owe them)
+                    // Overpaid sale - record full sale, plus a separate debtor payment for the excess
                     addTransaction(
                         "sale",
-                        `Sale — ${paymentMethod === "mpesa" ? "M-Pesa" : "Cash"}`,
-                        itemsText,
+                        `Overpaid Sale — ${referenceName}`,
+                        `Fully paid via ${paymentMethod.toUpperCase()} · by ${operant}`,
                         totalAmt,
                         paymentMethod,
                         referenceName,
@@ -446,13 +446,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     addTransaction(
                         "debtor_payment",
                         `Customer Overpayment — ${referenceName}`,
-                        `Excess received on ${itemsText}`,
+                        `Excess credit via ${paymentMethod.toUpperCase()} · by ${operant}`,
                         overpayAmount,
                         paymentMethod,
                         referenceName,
                         operant,
                     );
-                    // Create negative debtor balance (we owe them)
                     updateDebtor(referenceName, -overpayAmount, 0);
                     addNotification(
                         "Overpayment Recorded",
@@ -461,6 +460,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     );
                     refreshAll();
                     return;
+                } else {
+                    throw new Error("Customer name is required for overpayments.");
                 }
             }
 
@@ -535,21 +536,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 }
             });
 
-            // Handle Debtors created during hawking
-            reconciliationData.globalDebtors.forEach((debtor) => {
-                if (debtor.amount > 0) {
-                    updateDebtor(debtor.name, debtor.amount, 0);
+            // Handle global debtors
+            if (reconciliationData.globalDebtors) {
+                reconciliationData.globalDebtors.forEach((debtor) => {
+                    // For debtors, we also don't map specific items since debtors are recorded in aggregate.
+                    // This is sufficient for accurate stock and financial calculations.
                     addTransaction(
                         "sale",
-                        `Credit Sale (Takeout) — ${debtor.name}`,
-                        "Takeout Items on Credit",
+                        `Takeout Credit Sales — ${staffName}`,
+                        `Credit to ${debtor.name}`,
                         debtor.amount,
                         "credit",
                         debtor.name,
                         staffName,
                     );
-                }
-            });
+                    updateDebtor(debtor.name, debtor.amount, 0);
+                });
+            }
+
+            // Extract items sold via cash/mpesa for analytics mapping
+            const cashSoldItems = reconciliationData.items
+                .filter((i) => i.cashSold > 0)
+                .map((i) => {
+                    const currentMeal = latestMeals.find((m) => m.id === i.mealId);
+                    return { mealName: currentMeal?.name || `Meal ${i.mealId}`, quantity: i.cashSold, unitPrice: currentMeal?.price || 0 };
+                });
 
             // Handle bulk cash sale
             if (reconciliationData.totalCash > 0) {
@@ -561,11 +572,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     "cash",
                     undefined,
                     staffName,
+                    cashSoldItems.length > 0 ? cashSoldItems : undefined
                 );
             }
 
             // Handle bulk M-Pesa sale
             if (reconciliationData.totalMpesa > 0) {
+                // If items were mapped entirely to cash earlier, we might not map them here unless they were separated.
+                // In the current reconciliation flow, we don't have separate cash vs mpesa item mapping,
+                // so we only assign the items once to the cash sale to avoid duplicate analytics counting.
                 addTransaction(
                     "sale",
                     `Takeout M-Pesa Sales — ${staffName}`,
@@ -574,6 +589,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     "mpesa",
                     undefined,
                     staffName,
+                    (reconciliationData.totalCash === 0 && cashSoldItems.length > 0) ? cashSoldItems : undefined
                 );
             }
 

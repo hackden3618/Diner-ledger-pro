@@ -2,7 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-@theme{
+@layer base {
+  :root {
     --background: #f4f6f4;
     --card: #ffffff;
     --input: #ebf0ec;
@@ -19,4 +20,5 @@
     --destructive: #e74c3c;
     --warning: #f39c12;
     --info: #3498db;
+  }
 }
