@@ -20,6 +20,8 @@ const KEYS = {
   paidUntil: "premium_paid_until",
   lifetime: "premium_lifetime",
   lastCheckoutReference: "premium_last_checkout_reference",
+  pendingCheckoutRequestId: "premium_pending_checkout_request_id",
+  pendingCheckoutPlanId: "premium_pending_checkout_plan_id",
 };
 
 function addDays(date: Date, days: number) {
@@ -112,4 +114,24 @@ export function getDaysRemaining(dateIso?: string, now = new Date()) {
   if (!dateIso) return 0;
   const diff = new Date(dateIso).getTime() - now.getTime();
   return Math.max(0, Math.ceil(diff / (24 * 60 * 60 * 1000)));
+}
+
+export function savePendingCheckout(checkoutRequestId: string, planId: SubscriptionPlanId) {
+  initDatabase();
+  updateSetting(KEYS.pendingCheckoutRequestId, checkoutRequestId);
+  updateSetting(KEYS.pendingCheckoutPlanId, planId);
+}
+
+export function getPendingCheckout(): { checkoutRequestId?: string; planId?: SubscriptionPlanId } {
+  initDatabase();
+  return {
+    checkoutRequestId: getSetting(KEYS.pendingCheckoutRequestId) || undefined,
+    planId: (getSetting(KEYS.pendingCheckoutPlanId) as SubscriptionPlanId | null) || undefined,
+  };
+}
+
+export function clearPendingCheckout() {
+  initDatabase();
+  updateSetting(KEYS.pendingCheckoutRequestId, "");
+  updateSetting(KEYS.pendingCheckoutPlanId, "");
 }

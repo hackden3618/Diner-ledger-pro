@@ -34,8 +34,8 @@ export default function DebtorsScreen({
                 { text: "Abort", style: "cancel" },
                 {
                     text: "Continue Anyway", style: "destructive", onPress: () => {
-                        showAlert("Deleted!", "The debtor's record has been deleted successfully \nDebtor Name: " + debtor_name)
                         clearDebtorAccount(debtor_id);
+                        showAlert("Deleted!", "The debtor's record has been deleted successfully \nDebtor Name: " + debtor_name)
                     }
                 }
             ]

@@ -40,7 +40,7 @@ export function useAutoDayClose() {
                         if (!hasClosedToday) {
 
                             dbCloseDay(openingBalanceToday, totalSalesToday, expensesToday, moneyInHouse, "System (Auto)", undefined);
-                            if (moneyInHouse > 0) {
+                            if (cashAvailableToday >= 0 && mpesaAvailableToday >= 0) {
                                 recordCollection(
                                     cashAvailableToday,
                                     mpesaAvailableToday,

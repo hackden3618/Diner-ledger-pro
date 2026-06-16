@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#dbe4dd',
     borderRadius: 30,
-    position: "fixed",
+    position: 'absolute',
     bottom:30,
     marginInline: 9,
     backgroundColor: '#fbfdfb',

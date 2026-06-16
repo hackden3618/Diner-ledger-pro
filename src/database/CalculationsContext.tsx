@@ -54,6 +54,7 @@ export function CalculationsProvider({ children }: { children: ReactNode }) {
         .filter(
             (t) =>
                 (t.type === "purchase" && t.paymentMethod === "cash") ||
+                (t.type === "purchase_payment" && t.paymentMethod === "cash") ||
                 (t.type === "expense" && t.paymentMethod === "cash") ||
                 (t.type === "creditor_payment" && t.paymentMethod === "cash") ||
                 (t.type === "collection" && t.paymentMethod === "cash")
@@ -73,6 +74,7 @@ export function CalculationsProvider({ children }: { children: ReactNode }) {
         .filter(
             (t) =>
                 (t.type === "purchase" && t.paymentMethod === "mpesa") ||
+                (t.type === "purchase_payment" && t.paymentMethod === "mpesa") ||
                 (t.type === "expense" && t.paymentMethod === "mpesa") ||
                 (t.type === "creditor_payment" && t.paymentMethod === "mpesa") ||
                 (t.type === "collection" && t.paymentMethod === "mpesa")

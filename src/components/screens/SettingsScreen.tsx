@@ -458,7 +458,7 @@ export default function SettingsScreen() {
                             </View>
                             <View className="flex-row justify-between">
                                 <Text className="text-[12px] text-foreground">M-Pesa Expected In-House</Text>
-                                <Text className="text-[12px] font-bold text-info">{fmt(cashAvailableToday)}</Text>
+                                <Text className="text-[12px] font-bold text-info">{fmt(mpesaAvailableToday)}</Text>
                             </View>
                             <View className="flex-row justify-between">
                                 <Text className="text-[12px] text-foreground">
@@ -470,7 +470,7 @@ export default function SettingsScreen() {
                             </View>
                             <View className="flex-row justify-between">
                                 <Text className="text-[12px] text-foreground">
-                                    {"Today's Expenses"}
+                                    {"Today's Outflows"}
                                 </Text>
                                 <Text className="text-[12px] font-bold text-destructive">
                                     {fmt(moneyOutToday)}

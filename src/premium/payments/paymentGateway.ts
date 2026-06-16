@@ -56,22 +56,30 @@ export async function initiateStkPush({
   // POST /payments/mpesa/stk-push
   // Body: { phoneNumber, amountKes, planId, businessName }
   // Backend must call Safaricom Daraja and return checkoutRequestId.
-  const response = await fetch(`${baseUrl}/payments/mpesa/stk-push`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      phoneNumber,
-      amountKes: plan.priceKes,
-      planId,
-      businessName,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-  if (!response.ok) {
-    throw new Error("Could not initiate M-Pesa STK Push. Please try again.");
+  try {
+    const response = await fetch(`${baseUrl}/payments/mpesa/stk-push`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phoneNumber,
+        amountKes: plan.priceKes,
+        planId,
+        businessName,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error("Could not initiate M-Pesa STK Push. Please try again.");
+    }
+
+    return response.json();
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return response.json();
 }
 
 export async function verifyPayment(checkoutRequestId: string): Promise<PaymentVerificationResponse> {
@@ -81,11 +89,20 @@ export async function verifyPayment(checkoutRequestId: string): Promise<PaymentV
   // GET /payments/mpesa/verify/:checkoutRequestId
   // Response: { paid: boolean, receiptReference?: string, message?: string }
   // Only unlock premium after the backend confirms Daraja callback success.
-  const response = await fetch(`${baseUrl}/payments/mpesa/verify/${checkoutRequestId}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-  if (!response.ok) {
-    throw new Error("Could not verify payment yet. Please try again after the STK prompt completes.");
+  try {
+    const response = await fetch(`${baseUrl}/payments/mpesa/verify/${encodeURIComponent(checkoutRequestId)}`, {
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error("Could not verify payment yet. Please try again after the STK prompt completes.");
+    }
+
+    return response.json();
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return response.json();
 }

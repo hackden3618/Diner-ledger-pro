@@ -11,7 +11,7 @@ This directory owns premium access logic so subscription/paywall code stays sepa
   - Monthly: KES 300
   - Lifetime: KES 9,999
 - M-Pesa STK Push is scaffolded, but access unlocks only after backend verification.
-- Local premium alerts are enabled for:
+- Local business alerts are enabled for all users:
   - Low stock
   - Open debtor/creditor balances
   - End-of-day collection not recorded

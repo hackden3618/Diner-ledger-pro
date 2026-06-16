@@ -62,11 +62,15 @@ export async function registerForPushNotificationsAsync(
     // POST /notifications/register-device
     // Body: { token, businessName, platform }
     // Store this token server-side and use Expo's push API for remote alerts.
-    await fetch(`${notificationsApiBaseUrl.replace(/\/$/, "")}/notifications/register-device`, {
+    const response = await fetch(`${notificationsApiBaseUrl.replace(/\/$/, "")}/notifications/register-device`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token, businessName, platform: Platform.OS }),
     });
+
+    if (!response.ok) {
+      throw new Error("Failed to register device with backend.");
+    }
   }
 
   return { status: "registered", token };
@@ -86,7 +90,6 @@ export async function scheduleLocalBusinessAlert(
     if (hoursSinceLast < minHoursBetweenAlerts) return;
   }
 
-  updateSetting(settingKey, now.toISOString());
   await Notifications.scheduleNotificationAsync({
     content: {
       title,
@@ -96,4 +99,5 @@ export async function scheduleLocalBusinessAlert(
     },
     trigger: null,
   });
+  updateSetting(settingKey, now.toISOString());
 }

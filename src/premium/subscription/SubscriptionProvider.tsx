@@ -6,6 +6,9 @@ import {
   rememberCheckoutReference,
   startTrial as startTrialInStore,
   SubscriptionState,
+  savePendingCheckout,
+  getPendingCheckout,
+  clearPendingCheckout,
 } from "./subscriptionStore";
 import { SubscriptionPlanId } from "./plans";
 import { initiateStkPush, verifyPayment } from "../payments/paymentGateway";
@@ -43,6 +46,14 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refreshSubscription();
+    const pending = getPendingCheckout();
+    if (pending.checkoutRequestId && pending.planId) {
+      setCheckout({
+        planId: pending.planId,
+        checkoutRequestId: pending.checkoutRequestId,
+        message: "Previous checkout found. You can verify payment status.",
+      });
+    }
   }, [refreshSubscription]);
 
   const startTrial = useCallback(() => {
@@ -53,6 +64,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     async ({ planId, phoneNumber, businessName }) => {
       const response = await initiateStkPush({ planId, phoneNumber, businessName });
       rememberCheckoutReference(response.checkoutRequestId);
+      savePendingCheckout(response.checkoutRequestId, planId);
       setCheckout({
         planId,
         checkoutRequestId: response.checkoutRequestId,
@@ -78,6 +90,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     }
 
     setState(activateVerifiedSubscription(checkout.planId, result.receiptReference));
+    clearPendingCheckout();
     setCheckout({});
     return true;
   }, [checkout.checkoutRequestId, checkout.planId]);
