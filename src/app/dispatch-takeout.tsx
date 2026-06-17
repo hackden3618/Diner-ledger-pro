@@ -14,7 +14,7 @@ import { useCalculations } from '@/database/CalculationsContext';
 
 export default function DispatchTakeoutScreen() {
     const { showAlert } = useCustomAlert();
-    const { meals, dispatchTakeout, transactions } = useApp();
+    const { meals, dispatchTakeout } = useApp();
     const { cashBeforeChange } = useCalculations();
     const router = useRouter();
     const insets = useSafeAreaInsets();
