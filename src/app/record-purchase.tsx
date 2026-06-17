@@ -11,6 +11,13 @@ import InfoAlert from '@/components/ui/InfoAlert';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCustomAlert } from "@/context/AlertContext";
 
+/**
+ * Screen for recording a business purchase with input validation and real-time creditor balance preview.
+ *
+ * Collects purchase information including staff member, supplier, item description, expected and paid amounts,
+ * and payment method. Validates all inputs, calculates creditor and supplier credit impacts in real time,
+ * and records transactions with automatic handling for partial payments and overpayments.
+ */
 export default function RecordPurchaseScreen() {
     const { showAlert } = useCustomAlert();
     const { recordPurchase, recordCreditorPayment, transactions, creditors } = useApp();
@@ -288,7 +295,7 @@ export default function RecordPurchaseScreen() {
                                 <Text className={`text-[14px] font-medium ${paymentMethod === 'cash' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>💵 Cash</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                className={`flex-1 py-4 items-center rounded-[10px] ${paymentMethod === 'cash' ? 'bg-card border border-border-strong shadow-sm' : ''}`}
+                                className={`flex-1 py-4 items-center rounded-[10px] ${paymentMethod === 'mpesa' ? 'bg-card border border-border-strong shadow-sm' : ''}`}
                                 onPress={() => setPaymentMethod('mpesa')}
                             >
                                 <Text className={`text-[14px] font-medium ${paymentMethod === 'mpesa' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>📱 M-Pesa</Text>

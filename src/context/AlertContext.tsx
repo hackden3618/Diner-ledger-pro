@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import CustomAlertModal, { AlertButton } from '../components/ui/CustomAlertModal';
+import { hapticSuccess, hapticError, hapticWarning } from '../utils/haptics';
+import { playSuccessSound, playErrorSound, playClickSound } from '../utils/sounds';
 
 interface AlertState {
     visible: boolean;
@@ -14,6 +16,13 @@ interface AlertContextType {
 
 const AlertContext = createContext<AlertContextType | undefined>(undefined);
 
+/**
+ * Provides alert context and modal functionality to child components.
+ *
+ * Makes the `showAlert` function available to child components via context, enabling
+ * them to display custom alert modals with optional messages and buttons. Automatically
+ * triggers haptic and audio feedback when alerts are displayed.
+ */
 export function AlertProvider({ children }: { children: ReactNode }) {
     const [alertState, setAlertState] = useState<AlertState>({
         visible: false,
@@ -27,6 +36,18 @@ export function AlertProvider({ children }: { children: ReactNode }) {
             message,
             buttons,
         });
+
+        const lowerTitle = title.toLowerCase();
+        if (lowerTitle.includes('success')) {
+            hapticSuccess();
+            playSuccessSound();
+        } else if (lowerTitle.includes('failed') || lowerTitle.includes('error')) {
+            hapticError();
+            playErrorSound();
+        } else {
+            hapticWarning();
+            playClickSound();
+        }
     };
 
     const closeAlert = () => {

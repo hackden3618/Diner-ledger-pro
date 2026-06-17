@@ -19,6 +19,13 @@ import { useKeyboard } from '@/hooks/useKeyboard';
 
 type TabName = 'home' | 'transactions' | 'inventory' | 'debtors' | 'settings';
 
+/**
+ * Main app entry screen that verifies onboarding completion and manages tab-based screen navigation.
+ *
+ * If onboarding has not been completed, redirects to the onboarding screen. Otherwise, renders the current tab's screen (home, transactions, inventory, debtors, or settings) with a floating navigation bar and optional payment modals. Adjusts layout when the keyboard is visible.
+ *
+ * @returns The rendered app entry screen.
+ */
 export default function Index() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -55,8 +62,8 @@ export default function Index() {
     <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: '#f4f6f4' }}>
 
       {/* CORE VIEWPORT */}
-      <View className="flex-1 px-4 pt-2">
-        {currentTab === 'home' && <HomeScreen />}
+      <View className="flex-1 px-4 pt-2" style={{ paddingBottom: isKeyboardVisible ? 0 : tabBarBottomInset + 70 }}>
+        {currentTab === 'home' && <HomeScreen onNavigateToSettings={() => setCurrentTab('settings')} />}
         {currentTab === 'transactions' && <TransactionsScreen />}
         {currentTab === 'inventory' && (
           <InventoryScreen />
