@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, KeyboardAvoidingView, TextInp
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '@/database/AppContext';
 import { useCustomAlert } from "@/context/AlertContext";
-import ReassignDebtorModal from '@/components/modals/ReassignDebtorModal';
+import { useRouter } from 'expo-router';
 
 type DebtorsScreenProps = {
     debtorTab: 'debtors' | 'creditors';
@@ -24,10 +24,9 @@ export default function DebtorsScreen({
 }: DebtorsScreenProps) {
     const { showAlert } = useCustomAlert();
     const { debtors, creditors, clearDebtorAccount, clearCreditorAccount } = useApp();
+    const router = useRouter();
 
     const [searchQuery, setSearchQuery] = useState('');
-    const [reassignModalVisible, setReassignModalVisible] = useState(false);
-    const [selectedReassignDebtor, setSelectedReassignDebtor] = useState<{ id: number, name: string, amount: number } | null>(null);
 
     const activeDebtors = debtors.filter(debtor => (debtor.totalOwed - debtor.totalPaid) !== 0);
     const activeCreditors = creditors.filter(creditor => (creditor.totalOwed - creditor.totalPaid) !== 0);
@@ -59,8 +58,14 @@ export default function DebtorsScreen({
     }
 
     const openReassignModal = (debtor: any, outstanding: number) => {
-        setSelectedReassignDebtor({ id: debtor.id, name: debtor.name, amount: outstanding });
-        setReassignModalVisible(true);
+        router.push({
+            pathname: '/reassign-debt',
+            params: {
+                originalDebtorName: debtor.name,
+                originalAmount: outstanding,
+                debtorId: debtor.id
+            }
+        });
     };
 
     return (
@@ -259,16 +264,6 @@ export default function DebtorsScreen({
                     </View>
                 )}
             </ScrollView>
-
-            {selectedReassignDebtor && (
-                <ReassignDebtorModal
-                    visible={reassignModalVisible}
-                    onClose={() => setReassignModalVisible(false)}
-                    originalDebtorName={selectedReassignDebtor.name}
-                    originalAmount={selectedReassignDebtor.amount}
-                    debtorId={selectedReassignDebtor.id}
-                />
-            )}
 
         </KeyboardAvoidingView>
     );
