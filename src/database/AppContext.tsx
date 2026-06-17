@@ -189,6 +189,12 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+/**
+ * Provides context for application-wide restaurant operations and business data management.
+ *
+ * Manages state for meals, transactions, accounts, inventory, notifications, and takeout sessions.
+ * Exposes actions for recording financial transactions, managing accounts, and maintaining inventory.
+ */
 export function AppProvider({ children }: { children: ReactNode }) {
     const [businessName, setBusinessName] = useState<string>("Mega Diner");
     const [meals, setMeals] = useState<Meal[]>([]);

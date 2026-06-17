@@ -16,6 +16,13 @@ interface AlertContextType {
 
 const AlertContext = createContext<AlertContextType | undefined>(undefined);
 
+/**
+ * Provides alert context and modal functionality to child components.
+ *
+ * Makes the `showAlert` function available to child components via context, enabling
+ * them to display custom alert modals with optional messages and buttons. Automatically
+ * triggers haptic and audio feedback when alerts are displayed.
+ */
 export function AlertProvider({ children }: { children: ReactNode }) {
     const [alertState, setAlertState] = useState<AlertState>({
         visible: false,

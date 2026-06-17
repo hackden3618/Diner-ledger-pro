@@ -907,15 +907,26 @@ export function addNotification(
     );
 }
 
+/**
+ * Marks all unread notifications as read.
+ */
 export function markNotificationsAsRead() {
     db.runSync("UPDATE notifications SET read = 1 WHERE read = 0");
 }
 
+/**
+ * Deletes all notifications from the database.
+ */
 export function deleteAllNotifications() {
     db.runSync("DELETE FROM notifications");
 }
 
-// ─── Settings ─────────────────────────────────────────────────────────────────
+/**
+ * Retrieves a setting value by key.
+ *
+ * @param key - The setting key to retrieve
+ * @returns The setting value, or an empty string if the key is not found
+ */
 
 export function getSetting(key: string): string {
     const row = db.getFirstSync<{ value: string }>(

@@ -14,6 +14,9 @@ type DebtorsScreenProps = {
     setCreditorPayModalVisible: (visible: boolean) => void;
 };
 
+/**
+ * Displays a searchable interface for managing customer and supplier outstanding accounts with options to record payments, reassign debts, and write off balances.
+ */
 export default function DebtorsScreen({
     debtorTab,
     setDebtorTab,
