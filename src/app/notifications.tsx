@@ -6,6 +6,9 @@ import { useRouter } from "expo-router";
 import ScreenHeader from "@/components/ui/ScreenHeader";
 import { useCustomAlert } from "@/context/AlertContext";
 
+/**
+ * Displays a system notifications screen with a list of notifications and options to mark all as read or delete all.
+ */
 export default function NotificationsScreen() {
     const { notifications, clearAllNotifs, deleteAllNotifs } = useApp();
     const { showAlert } = useCustomAlert();

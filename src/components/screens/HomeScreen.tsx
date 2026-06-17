@@ -14,6 +14,11 @@ import { useApp } from "@/database/AppContext";
 import { useCalculations } from "@/database/CalculationsContext";
 import { useRouter } from "expo-router";
 
+/**
+ * Renders the home screen dashboard displaying financial overview, quick actions, and recent activity.
+ *
+ * @param onNavigateToSettings - Optional callback invoked when the settings button is pressed.
+ */
 export default function HomeScreen({ onNavigateToSettings }: { onNavigateToSettings?: () => void }) {
     const { transactions, takeoutSessions, debtors, creditors, businessName, unreadNotifsCount } = useApp();
     const {

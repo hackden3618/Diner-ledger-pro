@@ -19,6 +19,16 @@ const tabs: { name: TabName; label: string; icon: keyof typeof Ionicons.glyphMap
   { name: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
+/**
+ * A floating tab navigation bar for switching between main app sections.
+ *
+ * Renders five tabs with icons and labels. Pressing a non-active tab triggers light haptic feedback
+ * before switching to that tab. The active tab is highlighted in green, while inactive tabs appear grey.
+ *
+ * @param bottomInset - Additional vertical spacing from the bottom of the screen.
+ * @param currentTab - The name of the currently active tab.
+ * @param setCurrentTab - Callback to update the active tab.
+ */
 export default function FloatingTabBar({ bottomInset, currentTab, setCurrentTab }: FloatingTabBarProps) {
   return (
     <View style={[styles.shell, { paddingBottom: bottomInset }]}>

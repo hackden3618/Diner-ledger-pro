@@ -12,6 +12,11 @@ import InfoAlert from '@/components/ui/InfoAlert';
 import { useCustomAlert } from "@/context/AlertContext";
 import { useCalculations } from '@/database/CalculationsContext';
 
+/**
+ * Screen for dispatching takeout meals to staff members.
+ *
+ * Allows selection of available meals with quantity adjustments, input of change amount, and validation before dispatch. Automatically deducts dispatched items from kitchen stock and returns to the previous screen on successful dispatch.
+ */
 export default function DispatchTakeoutScreen() {
     const { showAlert } = useCustomAlert();
     const { meals, dispatchTakeout } = useApp();
